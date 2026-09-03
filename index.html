@@ -75,6 +75,7 @@ details.robots .list{padding:8px 0 2px 20px;line-height:2;color:#B9B9B9}
 .slot .ok.show{visibility:visible}
 .slider{display:grid;grid-template-columns:92px 1fr 52px;align-items:center;gap:10px;margin-bottom:9px;font-size:14px}
 .slider input[type=range]{width:100%;accent-color:var(--green);height:3px}
+.hint{font-size:11.5px;color:#9A9A9A;line-height:1.45;margin:-5px 0 10px}
 .sval{background:#2E2E2E;text-align:right;padding:3px 8px;font-size:13.5px;border-radius:4px}
 .errbox{background:var(--panel2);border-radius:6px;padding:11px 12px;display:none}
 .errbox.show{display:block}
@@ -180,8 +181,11 @@ input[type=file]{display:none}
     <div class="panel" id="planPanel">
       <div>
         <div class="slider"><span>density</span><input type="range" id="pDisp" min="10" max="60" value="25"><span class="sval" id="pvDisp">25</span></div>
+        <div class="hint">每累積多少度角位移補一個切點。數字小 → 切點密(大動作段落切更多);數字大 → 稀。</div>
         <div class="slider"><span>max gap</span><input type="range" id="pMax" min="60" max="200" value="120"><span class="sval" id="pvMax">1.2s</span></div>
+        <div class="hint">停頓段最長多久一定補一個切點,避免長時間沒有關鍵幀(手臂會停太久)。</div>
         <div class="slider"><span>budget</span><input type="range" id="pBudget" min="0" max="300" value="0"><span class="sval" id="pvBudget">—</span></div>
+        <div class="hint">切點總數上限(— = 不限)。超過時優先保留 valley / hit,砍 infill。</div>
         <button class="gbtn green" id="planBtn" style="width:100%;padding:10px;margin-top:4px" disabled>Plan Keyframes</button>
       </div>
       <div class="ksum" id="planSum"></div>
@@ -193,8 +197,11 @@ input[type=file]{display:none}
     <div class="panel on" id="texturePanel">
     <div>
       <div class="slider"><span>torque gain</span><input type="range" id="gTorque" min="20" max="250" value="100"><span class="sval" id="vTorque">1.0</span></div>
+        <div class="hint">力度對比。>1 讓 Acc 分佈更開(猛的更猛、柔的更柔);<1 更平均。不影響時序。</div>
       <div class="slider"><span>jerk gain</span><input type="range" id="gJerk" min="20" max="250" value="100"><span class="sval" id="vJerk">1.0</span></div>
+        <div class="hint">頓感判定。>1 更容易判成頓(FINE=1/2 變多);<1 更流(FINE=0 / CONT 變多)。</div>
       <div class="slider"><span>sensitivity</span><input type="range" id="gSens" min="10" max="90" value="45"><span class="sval" id="vSens">45</span></div>
+        <div class="hint">句點靈敏度(ω 波谷門檻分位數)。越高偵測到越多停頓點 → 錨點 FINE 變多。</div>
       <button class="gbtn green" id="applyBtn" style="width:100%;padding:10px;margin-top:4px" disabled>Apply Texture</button>
       <div class="status" id="engineStatus">engine: loading…</div>
     </div>

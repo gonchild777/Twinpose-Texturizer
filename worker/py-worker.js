@@ -25,6 +25,14 @@ def plan_keyframes(metrics_csv_text, params):
                    params['disp_step'], params.get('budget'))
     return json.dumps([{'t': round(x, 3), 'frame': round(x * 30), 'reason': k} for x, k in keys])
 
+def _plan_json(js):
+    p = json.loads(js)
+    return plan_keyframes(p['metricsText'], p['params'])
+
+def _apply_json(js):
+    p = json.loads(js)
+    return apply_texture(p['motionPath'], p['metricsText'], p['gains'], p['robot'])
+
 def apply_texture(motion_path, metrics_csv_text, gains, robot):
     _write_adapted(metrics_csv_text)
     cfg = Config()
@@ -57,15 +65,14 @@ onmessage = async e => {
   const { type, payload, id } = e.data;
   try {
     if (type === 'plan') {
-      const out = pyodide.runPython(
-        `plan_keyframes(${JSON.stringify(payload.metricsText)}, ${JSON.stringify(payload.params)})`);
+      pyodide.globals.set('__payload', JSON.stringify(payload));
+      const out = pyodide.runPython('_plan_json(__payload)');
       postMessage({ type: 'result', id, payload: JSON.parse(out) });
     }
     if (type === 'apply') {
       pyodide.FS.writeFile('/tmp/motion' + payload.motionExt, payload.motionText);
-      const out = pyodide.runPython(
-        `apply_texture('/tmp/motion${payload.motionExt}', ${JSON.stringify(payload.metricsText)}, ` +
-        `${JSON.stringify(payload.gains)}, ${JSON.stringify(payload.robot)})`);
+      pyodide.globals.set('__payload', JSON.stringify({ ...payload, motionPath: '/tmp/motion' + payload.motionExt }));
+      const out = pyodide.runPython('_apply_json(__payload)');
       postMessage({ type: 'result', id, payload: JSON.parse(out) });
     }
   } catch (err) {
