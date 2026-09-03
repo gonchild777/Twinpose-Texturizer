@@ -34,10 +34,10 @@ python3 -m http.server 8080        # repo 根目錄
 - [x] M4 拖關鍵幀改時(吸附影格、夾鄰居)、Acc 點擊覆寫、Ctrl+Z / Ctrl+Shift+Z
 - [x] M5 黃金樣本守門 `tools/golden_check.py` + CI(每次 push 驗證 engine zip 產碼 = FINAL4)
 - [x] M6 Local Save 自動儲存/開站還原、.twtx Export/Import
-- [x] M7 Keyframes 切點規劃頁:Plan、核銷清單(點列跳幀、勾選核銷)、plan.csv
+- [x] M7 Keyframe Planner 切點規劃頁:Plan、核銷清單(點列跳幀、勾選核銷)、plan.csv
 
 ## 操作備忘
-- Texture 分頁:拖曳菱形改時間(僅 .json 動作檔可編輯;.hrb 為唯讀顯示)
+- Texturizer 分頁:拖曳菱形改時間(僅 .json 動作檔可編輯;.hrb 為唯讀顯示)
 - 點 Acc 力度條 → 輸入數值 Enter(覆寫鍵 = 原始關鍵幀索引,引擎端補償時序)
 - 改 worker/py-worker.js 後請將 js/bridge.js 的 `?v=` 加一,避開瀏覽器快取
 - 黃金樣本:`python tools/golden_check.py`(需 pyyaml numpy)

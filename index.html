@@ -122,9 +122,8 @@ input[type=file]{display:none}
 <div class="top">
   <div class="mark">TwinPose <span>Texturizer</span></div>
   <nav class="steps">
-    <button class="step" data-tab="keyframes">Keyframes</button>
-    <button class="step" data-tab="metrics">Metrics</button>
-    <button class="step on" data-tab="texture">Texture</button>
+    <button class="step" data-tab="keyframes">Keyframe Planner</button>
+    <button class="step on" data-tab="texture">Texturizer</button>
   </nav>
   <div class="spacer"></div>
   <div class="toggle" id="localSave"><span class="tg on"></span>Local Save</div>
@@ -177,7 +176,7 @@ input[type=file]{display:none}
     </div>
     <div class="hr"></div>
 
-    <!-- Keyframes 分頁面板 -->
+    <!-- Keyframe Planner 分頁面板 -->
     <div class="panel" id="planPanel">
       <div>
         <div class="slider"><span>density</span><input type="range" id="pDisp" min="10" max="60" value="25"><span class="sval" id="pvDisp">25</span></div>
@@ -193,7 +192,7 @@ input[type=file]{display:none}
       <button class="gbtn" id="planDl" style="display:none">Download plan.csv</button>
     </div>
 
-    <!-- Texture 分頁面板 -->
+    <!-- Texturizer 分頁面板 -->
     <div class="panel on" id="texturePanel">
     <div>
       <div class="slider"><span>torque gain</span><input type="range" id="gTorque" min="20" max="250" value="100"><span class="sval" id="vTorque">1.0</span></div>
