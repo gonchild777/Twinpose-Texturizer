@@ -114,25 +114,24 @@ document.querySelectorAll('.step').forEach(b => b.onclick = () => {
   set({ tab });
 });
 
-// ---- 影片/時間軸 分隔桿拖曳(記憶高度) ----
+// ---- 影片/時間軸 分隔桿:拖曳調整影片高度(記憶) ----
 {
   const div = document.getElementById('divider');
-  const saved = localStorage.getItem('tlh');
-  if (saved) document.documentElement.style.setProperty('--tlh', saved + 'px');
+  const saved = localStorage.getItem('vh');
+  if (saved) document.documentElement.style.setProperty('--vh', saved + 'px');
   let startY = 0, startH = 0;
   div.addEventListener('pointerdown', e => {
-    startY = e.clientY; startH = document.querySelector('.tlwrap').clientHeight;
+    startY = e.clientY; startH = document.querySelector('.videobox').clientHeight;
     div.classList.add('drag'); div.setPointerCapture(e.pointerId);
   });
   div.addEventListener('pointermove', e => {
     if (!div.classList.contains('drag')) return;
-    const h = Math.min(Math.max(startH + (startY - e.clientY), 120), innerHeight - 260);
-    document.documentElement.style.setProperty('--tlh', h + 'px');
-    localStorage.setItem('tlh', h);
+    const h = Math.max(startH + (e.clientY - startY), 140);   // 只設下限,可拉很大 → 用捲動看時間軸
+    document.documentElement.style.setProperty('--vh', h + 'px');
+    localStorage.setItem('vh', h);
   });
   div.addEventListener('pointerup', () => div.classList.remove('drag'));
 }
-
 
 // ==== M4:Acc 點擊覆寫(浮動輸入框)====
 on('accClick', ({ seg, x, y }) => {
@@ -203,7 +202,7 @@ function snapshot() {
     fileNames: { video: state.files.video?.name, motion: state.files.motion?.name, metrics: state.files.metrics?.name },
     gains: state.gains, tab: state.tab, accOverrides: state.accOverrides,
     kfTimes: state.keyframes?.map(k => k.time) ?? null,
-    tlh: localStorage.getItem('tlh') };
+    vh: localStorage.getItem('vh') };
 }
 function restore(sn) {
   if (!sn || sn.schema !== TWTX) return;
@@ -213,7 +212,7 @@ function restore(sn) {
     document.getElementById(['vTorque','vJerk','vSens'][j]).textContent = j < 2 ? (v/100).toFixed(1) : v;
   });
   set({ gains: sn.gains, accOverrides: sn.accOverrides || {} });
-  if (sn.tlh) document.documentElement.style.setProperty('--tlh', sn.tlh + 'px');
+  if (sn.vh) document.documentElement.style.setProperty('--vh', sn.vh + 'px');
   pendingKfTimes = sn.kfTimes;   // 等 motion 載入後套用
   document.getElementById('savedAt').textContent = 'restored · load files to continue';
 }

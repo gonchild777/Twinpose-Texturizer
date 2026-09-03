@@ -17,7 +17,7 @@ export function initTimeline() {
   const zoomEl = document.getElementById('zoomSlider');
   zoomEl.addEventListener('input', () => setZoom(zoomEl.value / 100));
   lanesEl.addEventListener('wheel', e => {
-    if (!state.duration) return;
+    if (!state.duration || e.shiftKey) return;      // Shift+滾輪 → 讓頁面捲動
     e.preventDefault();
     if (e.ctrlKey || e.metaKey) setZoom(state.zoom * (e.deltaY < 0 ? 1.15 : 0.87), pxToT(e.offsetX));
     else set({ pan: clampPan(state.pan + e.deltaY * viewSpan() / 800) });

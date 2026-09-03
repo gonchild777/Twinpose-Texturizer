@@ -25,6 +25,10 @@ button{font-family:inherit;cursor:pointer;color:inherit;border:none;background:n
 .top{display:flex;align-items:center;gap:14px;height:54px;padding:0 16px;border-bottom:1px solid #1E1E1E;flex:none}
 .mark{font-size:18px;font-weight:700}
 .mark span{color:var(--green)}
+.mark .home{color:inherit;text-decoration:none}
+.mark .home:hover{color:var(--green)}
+.ext{margin-left:2px;font-size:13px;color:#B5B5B5;text-decoration:none;padding:6px 12px;border:1px solid #333;border-radius:8px}
+.ext:hover{color:#fff;border-color:var(--green)}
 .steps{display:flex;gap:4px;margin-left:6px}
 .step{border-radius:9px;color:var(--dim);font-size:14.5px;padding:8px 15px}
 .step.on{background:#262626;color:#fff}
@@ -37,8 +41,9 @@ button{font-family:inherit;cursor:pointer;color:inherit;border:none;background:n
 .saved{font-size:12px;color:var(--dim)}
 
 .main{display:grid;grid-template-columns:1fr 312px;flex:1;min-height:0}
-.stage{display:flex;flex-direction:column;padding:12px 14px;gap:8px;min-width:0;min-height:0}
-.videobox{flex:1;min-height:120px;background:#0A0A0A;border:1px solid #1E1E1E;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.stage{display:flex;flex-direction:column;padding:12px 14px;gap:8px;min-width:0;min-height:0;overflow-y:auto}
+.videobox{flex:none}
+.videobox{height:var(--vh,52vh);min-height:140px;background:#0A0A0A;border:1px solid #1E1E1E;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .videobox.drag{border-color:var(--green)}
 .videobox video{width:100%;height:100%;object-fit:contain}
 .videobox .ph{color:#666;font-size:14px;text-align:center;line-height:2;cursor:pointer}
@@ -120,11 +125,12 @@ input[type=file]{display:none}
 <body>
 
 <div class="top">
-  <div class="mark">TwinPose <span>Texturizer</span></div>
+  <div class="mark"><a class="home" href="https://twinpose.site/" target="_blank" rel="noopener" title="Open TwinPose (capture poses)">TwinPose</a> <span>Texturizer</span></div>
   <nav class="steps">
     <button class="step" data-tab="keyframes">Keyframe Planner</button>
     <button class="step on" data-tab="texture">Texturizer</button>
   </nav>
+  <a class="ext" href="https://twinpose.site/" target="_blank" rel="noopener" title="Capture poses in TwinPose, then bring the export back here">↗ TwinPose</a>
   <div class="spacer"></div>
   <div class="toggle" id="localSave"><span class="tg on"></span>Local Save</div>
   <button class="gbtn" id="importBtn">Import</button>
@@ -146,7 +152,7 @@ input[type=file]{display:none}
         <button class="btn" id="playBtn">Play</button>
         <button class="btn" id="nextKf">⏭</button>
       </div>
-      <div class="thint">space play · ← → frame · [ ] prev/next keyframe</div>
+      <div class="thint">space play · ← → frame · [ ] prev/next keyframe · drag ◆ to retime · wheel on timeline = pan, ctrl+wheel = zoom, shift+wheel = scroll page</div>
     </div>
     <div class="divider" id="divider"></div>
     <div class="tlwrap">
@@ -180,11 +186,11 @@ input[type=file]{display:none}
     <div class="panel" id="planPanel">
       <div>
         <div class="slider"><span>density</span><input type="range" id="pDisp" min="10" max="60" value="25"><span class="sval" id="pvDisp">25</span></div>
-        <div class="hint">每累積多少度角位移補一個切點。數字小 → 切點密(大動作段落切更多);數字大 → 稀。</div>
+        <div class="hint">Degrees of accumulated joint travel per cut. Lower = denser cuts in big movement.</div>
         <div class="slider"><span>max gap</span><input type="range" id="pMax" min="60" max="200" value="120"><span class="sval" id="pvMax">1.2s</span></div>
-        <div class="hint">停頓段最長多久一定補一個切點,避免長時間沒有關鍵幀(手臂會停太久)。</div>
+        <div class="hint">Longest gap allowed without a cut, so still sections still get keyframes.</div>
         <div class="slider"><span>budget</span><input type="range" id="pBudget" min="0" max="300" value="0"><span class="sval" id="pvBudget">—</span></div>
-        <div class="hint">切點總數上限(— = 不限)。超過時優先保留 valley / hit,砍 infill。</div>
+        <div class="hint">Cap on total cuts (— = no limit). Valley and hit are kept first, infill dropped.</div>
         <button class="gbtn green" id="planBtn" style="width:100%;padding:10px;margin-top:4px" disabled>Plan Keyframes</button>
       </div>
       <div class="ksum" id="planSum"></div>
@@ -196,11 +202,11 @@ input[type=file]{display:none}
     <div class="panel on" id="texturePanel">
     <div>
       <div class="slider"><span>torque gain</span><input type="range" id="gTorque" min="20" max="250" value="100"><span class="sval" id="vTorque">1.0</span></div>
-        <div class="hint">力度對比。>1 讓 Acc 分佈更開(猛的更猛、柔的更柔);<1 更平均。不影響時序。</div>
+        <div class="hint">Effort contrast. >1 spreads Acc wider (sharper highs, softer lows). Timing unaffected.</div>
       <div class="slider"><span>jerk gain</span><input type="range" id="gJerk" min="20" max="250" value="100"><span class="sval" id="vJerk">1.0</span></div>
-        <div class="hint">頓感判定。>1 更容易判成頓(FINE=1/2 變多);<1 更流(FINE=0 / CONT 變多)。</div>
+        <div class="hint">Punctuation threshold. >1 makes more holds (FINE=1/2); <1 keeps it flowing.</div>
       <div class="slider"><span>sensitivity</span><input type="range" id="gSens" min="10" max="90" value="45"><span class="sval" id="vSens">45</span></div>
-        <div class="hint">句點靈敏度(ω 波谷門檻分位數)。越高偵測到越多停頓點 → 錨點 FINE 變多。</div>
+        <div class="hint">Valley sensitivity (percentile of ω). Higher finds more pauses, so more anchors.</div>
       <button class="gbtn green" id="applyBtn" style="width:100%;padding:10px;margin-top:4px" disabled>Apply Texture</button>
       <div class="status" id="engineStatus">engine: loading…</div>
     </div>
