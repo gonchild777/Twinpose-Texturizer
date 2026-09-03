@@ -27,8 +27,17 @@ python3 -m http.server 8080        # repo 根目錄
 - 規格書:`docs/SPEC.md`;判定邏輯:`docs/FINE_CONT_邏輯.md`
 
 ## 里程碑狀態
-- [x] M0 骨架 + 部署
-- [x] M1 影片/時間軸雙向同步、縮放、膠卷
-- [x] M2(顯示)CSV 曲線、Motion 關鍵幀上軌
-- [ ] M2(引擎)Pyodide 首次實測 ← 目前重點
-- [ ] M3 質感迴圈 · M4 編輯 · M5 匯出 · M6 專案 · M7 切點規劃頁
+- [x] M0 骨架 + GitHub Pages 部署
+- [x] M1 影片/時間軸雙向同步、縮放、膠卷、可拖分隔桿
+- [x] M2 Pyodide 載入引擎(實機驗證 engine: ready ✓)、CSV 曲線、關鍵幀上軌
+- [x] M3 Apply Texture、三色標示、增益滑桿即時重算、錯誤清單
+- [x] M4 拖關鍵幀改時(吸附影格、夾鄰居)、Acc 點擊覆寫、Ctrl+Z / Ctrl+Shift+Z
+- [x] M5 黃金樣本守門 `tools/golden_check.py` + CI(每次 push 驗證 engine zip 產碼 = FINAL4)
+- [x] M6 Local Save 自動儲存/開站還原、.twtx Export/Import
+- [x] M7 Keyframes 切點規劃頁:Plan、核銷清單(點列跳幀、勾選核銷)、plan.csv
+
+## 操作備忘
+- Texture 分頁:拖曳菱形改時間(僅 .json 動作檔可編輯;.hrb 為唯讀顯示)
+- 點 Acc 力度條 → 輸入數值 Enter(覆寫鍵 = 原始關鍵幀索引,引擎端補償時序)
+- 改 worker/py-worker.js 後請將 js/bridge.js 的 `?v=` 加一,避開瀏覽器快取
+- 黃金樣本:`python tools/golden_check.py`(需 pyyaml numpy)

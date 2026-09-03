@@ -25,6 +25,7 @@ export function initVideo() {
   video.addEventListener('play', () => { playBtn.textContent = 'Pause'; tick(); });
   video.addEventListener('pause', () => { playBtn.textContent = 'Play'; cancelAnimationFrame(raf); });
   playBtn.onclick = () => video.paused ? video.play() : video.pause();
+  video.onclick = () => playBtn.onclick();
 
   const fr = 1 / state.fps;
   document.getElementById('prevKf').onclick = () => jumpKf(-1);

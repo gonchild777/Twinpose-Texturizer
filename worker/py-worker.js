@@ -8,19 +8,29 @@ sys.path.insert(0, '/engine')
 from core import Config, load_metrics, load_motion, run
 from core.config import RobotParams
 
+def _write_adapted(metrics_csv_text, fps=30.0):
+    # 單一真相源:直接呼叫 calibration/adapt_metrics.adapt,不重寫轉換邏輯
+    sys.path.insert(0, '/engine/calibration')
+    from pathlib import Path
+    import adapt_metrics
+    Path('/tmp/raw.csv').write_text(metrics_csv_text, encoding='utf-8')
+    adapt_metrics.adapt(Path('/tmp/raw.csv'), Path('/tmp/m.csv'), fps)
+
+def plan_keyframes(metrics_csv_text, params):
+    sys.path.insert(0, '/engine/calibration')
+    import plan_keyframes as pk
+    _write_adapted(metrics_csv_text)
+    t, w, tq = pk.load('/tmp/m.csv')
+    keys = pk.plan(t, w, tq, params['min_dt'], params['max_dt'],
+                   params['disp_step'], params.get('budget'))
+    return json.dumps([{'t': round(x, 3), 'frame': round(x * 30), 'reason': k} for x, k in keys])
+
 def apply_texture(motion_path, metrics_csv_text, gains, robot):
-    # 原始 SmoothedMetrics → 引擎格式(對映同 adapt_metrics.py)
-    import csv, io
-    rows = list(csv.DictReader(io.StringIO(metrics_csv_text)))
-    with open('/tmp/m.csv', 'w', newline='') as f:
-        w = csv.writer(f); w.writerow(['time_s','omega_total','energy','torque','jerk'])
-        for r in rows:
-            w.writerow([float(r['frameIndex'])/30.0,
-                        float(r['LeftAngularIntensity'])+float(r['RightAngularIntensity']),
-                        float(r.get('EnergyFlow',0)), float(r['TransitionTorque']), float(r.get('Jerk',0))])
+    _write_adapted(metrics_csv_text)
     cfg = Config()
     cfg.style.torque_gain = gains['torque']
     cfg.style.jerk_gain = gains['jerk']
+    cfg.style.acc_overrides = {int(k): int(v) for k, v in (gains.get('acc_overrides') or {}).items()}
     cfg.valley.sensitivity = gains['sensitivity']
     res = run(load_motion(motion_path), load_metrics('/tmp/m.csv'), cfg, RobotParams.load(robot))
     r = res.report
@@ -35,7 +45,7 @@ def apply_texture(motion_path, metrics_csv_text, gains, robot):
 
 async function init() {
   pyodide = await loadPyodide();
-  await pyodide.loadPackage(['pyyaml']);
+  await pyodide.loadPackage(['pyyaml', 'numpy']);
   const zip = await (await fetch('../engine/texturizer_engine.zip')).arrayBuffer();
   pyodide.FS.mkdir('/engine');
   pyodide.unpackArchive(zip, 'zip', { extractDir: '/engine' });
@@ -46,6 +56,11 @@ async function init() {
 onmessage = async e => {
   const { type, payload, id } = e.data;
   try {
+    if (type === 'plan') {
+      const out = pyodide.runPython(
+        `plan_keyframes(${JSON.stringify(payload.metricsText)}, ${JSON.stringify(payload.params)})`);
+      postMessage({ type: 'result', id, payload: JSON.parse(out) });
+    }
     if (type === 'apply') {
       pyodide.FS.writeFile('/tmp/motion' + payload.motionExt, payload.motionText);
       const out = pyodide.runPython(

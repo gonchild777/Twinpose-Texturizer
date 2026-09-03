@@ -51,8 +51,11 @@ export function wireFileInputs(onVideo) {
   });
   bind('fVideo', onVideo);
   bind('fMotion', async f => {
-    const kfs = parseMotion(f.name, await f.text());
-    set({ keyframes: kfs, texture: null,
+    const text = await f.text();
+    const kfs = parseMotion(f.name, text);
+    const doc = f.name.endsWith('.json') ? JSON.parse(text) : null;
+    set({ keyframes: kfs, texture: null, motionDoc: doc, accOverrides: {}, undo: [], redo: [],
+          motionExt: f.name.endsWith('.json') ? '.json' : '.hrb',
           duration: Math.max(state.duration, kfs.at(-1)?.time || 0),
           files: { ...state.files, motion: f } });
     mark('Motion', f.name);

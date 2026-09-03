@@ -9,6 +9,12 @@ export const state = {
   texture: null,        // 引擎回傳:{timeline:[{t,role,smooth,acc,time_ms,vel,sat}], warnings, hrb, stats}
   files: { video: null, motion: null, metrics: null },   // 檔名
   gains: { torque: 1.0, jerk: 1.0, sensitivity: 45 },
+  plan: null,           // 切點規劃 [{t, frame, reason}]
+  motionDoc: null,      // TwinPose JSON 全文件(編輯關鍵幀時間時同步改這裡)
+  motionExt: '.json',
+  accOverrides: {},     // {原始關鍵幀索引: Acc%}
+  undo: [], redo: [],
+  tab: 'texture',
 };
 const subs = {};
 export function on(ev, fn){ (subs[ev] ||= []).push(fn); }

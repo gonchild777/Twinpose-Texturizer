@@ -4,7 +4,7 @@ const pending = new Map();
 const statusEl = () => document.getElementById('engineStatus');
 
 export function initEngine() {
-  worker = new Worker('worker/py-worker.js');
+  worker = new Worker('worker/py-worker.js?v=4');
   worker.onmessage = e => {
     const { type, id, payload } = e.data;
     if (type === 'ready') { ready = true; statusEl().textContent = 'engine: ready ✓ (texturizer wheel loaded)'; }
@@ -17,13 +17,19 @@ export function initEngine() {
   statusEl().textContent = 'engine: loading Pyodide (~10MB, first time only)…';
 }
 export const engineReady = () => ready;
-export function applyTexture({ motionFile, metricsFile, gains, robot = 'MEASURED_AUTO100' }) {
+export function planKeyframes(metricsFile, params) {
+  return new Promise(async (resolve, reject) => {
+    const id = ++seq;
+    pending.set(id, { resolve, reject });
+    worker.postMessage({ type: 'plan', id, payload: { metricsText: await metricsFile.text(), params } });
+  });
+}
+export function applyTexture({ motionText, motionExt, metricsFile, gains, robot = 'MEASURED_AUTO100' }) {
   return new Promise(async (resolve, reject) => {
     const id = ++seq;
     pending.set(id, { resolve, reject });
     worker.postMessage({ type: 'apply', id, payload: {
-      motionText: await motionFile.text(),
-      motionExt: motionFile.name.endsWith('.json') ? '.json' : '.hrb',
+      motionText, motionExt,
       metricsText: await metricsFile.text(),
       gains, robot,
     }});

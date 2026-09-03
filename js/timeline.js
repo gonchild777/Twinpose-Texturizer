@@ -1,5 +1,5 @@
 // 時間軸:單一 canvas 自繪。軌序 = 尺標/膠卷/Keyframes/Acc/ω/Torque/Jerk
-import { state, set, on } from './store.js';
+import { state, set, on, emit } from './store.js';
 import { seek, video } from './video.js';
 
 const ROWS = [['', 20], ['film', 34], ['Keyframes', 44], ['Acc', 46], ['ω', 40], ['Torque', 36], ['Jerk', 36]];
@@ -23,10 +23,24 @@ export function initTimeline() {
     else set({ pan: clampPan(state.pan + e.deltaY * viewSpan() / 800) });
   }, { passive: false });
 
-  let dragging = false;
-  lanesEl.addEventListener('pointerdown', e => { dragging = true; seek(pxToT(e.offsetX)); });
-  lanesEl.addEventListener('pointermove', e => { if (dragging) seek(pxToT(e.offsetX)); });
-  addEventListener('pointerup', () => dragging = false);
+  let dragging = false, dragKf = -1;
+  lanesEl.addEventListener('pointerdown', e => {
+    const kf = hitKeyframe(e.offsetX, e.offsetY);
+    if (kf >= 0 && state.motionDoc) { dragKf = kf; emit('kfDragStart', { i: kf, t: state.keyframes[kf].time }); lanesEl.setPointerCapture(e.pointerId); return; }
+    const seg = hitAccBar(e.offsetX, e.offsetY);
+    if (seg >= 0) { emit('accClick', { seg, x: e.clientX, y: e.clientY }); return; }
+    dragging = true; seek(pxToT(e.offsetX));
+  });
+  lanesEl.addEventListener('pointermove', e => {
+    if (dragKf >= 0) { moveKeyframe(dragKf, pxToT(e.offsetX)); return; }
+    if (dragging) seek(pxToT(e.offsetX));
+    lanesEl.style.cursor = hitKeyframe(e.offsetX, e.offsetY) >= 0 && state.motionDoc ? 'ew-resize'
+                         : hitAccBar(e.offsetX, e.offsetY) >= 0 ? 'pointer' : 'crosshair';
+  });
+  addEventListener('pointerup', () => {
+    if (dragKf >= 0) { emit('kfMoved', dragKf); dragKf = -1; }
+    dragging = false;
+  });
 
   on('change', draw);
   new ResizeObserver(() => { fitCanvas(); draw(); }).observe(lanesEl);
@@ -97,7 +111,17 @@ export function draw() {
     plot('Torque', state.metrics.torque, '#E8A33D');
     plot('Jerk', state.metrics.jerk, '#F07178');
   }
-  // Keyframes + Acc
+  // Keyframes 軌:規劃切點(Keyframes 分頁)或動作關鍵幀(其他分頁)
+  if (state.tab === 'keyframes' && state.plan) {
+    const [ky0, kh] = ofs['Keyframes'];
+    const RC = { valley:'#4CAF50', hit:'#E5484D', infill:'#8E8E8E', hold:'#7A8EBF', start:'#C9C9C9', end:'#C9C9C9' };
+    for (const p of state.plan) {
+      const x = tToPx(p.t);
+      if (x < -4 || x > W + 4) continue;
+      ctx.strokeStyle = RC[p.reason] || '#8E8E8E'; ctx.lineWidth = p.reason === 'valley' || p.reason === 'hit' ? 2.5 : 1.5;
+      line(x, ky0 + 4, x, ky0 + kh - 4);
+    }
+  }
   const tex = indexTexture();
   if (state.keyframes) {
     const [ky0, kh] = ofs['Keyframes'], ky = ky0 + kh / 2;
@@ -147,4 +171,38 @@ function indexTexture() {
   return m;
 }
 const round3 = t => Math.round(t * 1000) / 1000;
+
+// ---- 命中測試與拖曳(M4)----
+function hitKeyframe(x, y) {
+  if (!state.keyframes || state.tab === 'keyframes') return -1;
+  const [ky0, kh] = ofs['Keyframes'];
+  if (y < ky0 || y > ky0 + kh) return -1;
+  let best = -1, bd = 7;
+  state.keyframes.forEach((k, i) => {
+    const d = Math.abs(tToPx(k.time) - x);
+    if (d < bd) { bd = d; best = i; }
+  });
+  return best;
+}
+function hitAccBar(x, y) {
+  if (!state.keyframes || !state.texture) return -1;
+  const [ay, ah] = ofs['Acc'];
+  if (y < ay || y > ay + ah) return -1;
+  const t = pxToT(x);
+  for (let i = 0; i < state.keyframes.length - 1; i++)
+    if (t >= state.keyframes[i].time && t < state.keyframes[i + 1].time) return i + 1; // 段=抵達幀索引
+  return -1;
+}
+function moveKeyframe(i, t) {
+  const ks = state.keyframes, fr = 1 / state.fps;
+  const lo = (ks[i - 1]?.time ?? 0) + fr, hi = (ks[i + 1]?.time ?? state.duration) - fr;
+  t = Math.round(Math.min(Math.max(t, lo), hi) * state.fps) / state.fps;   // 夾鄰居、吸附影格
+  ks[i] = { ...ks[i], time: round3(t) };
+  if (state.motionDoc) {
+    const jd = state.motionDoc.jointsData.filter(k => k.group !== 'wait');
+    if (jd[i]) jd[i].time = round3(t);
+  }
+  set({ keyframes: [...ks] });
+}
+export { moveKeyframe };
 function line(a, b, c, d) { ctx.beginPath(); ctx.moveTo(a, b); ctx.lineTo(c, d); ctx.stroke(); }
