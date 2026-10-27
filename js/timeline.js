@@ -1,0 +1,222 @@
+// 時間軸:單一 canvas 自繪。軌序 = 尺標/膠卷/Keyframes/Acc/ω/Torque/Jerk
+import { state, set, on, emit } from './store.js';
+import { seek, video } from './video.js';
+
+const ROWS = [['', 20], ['film', 34], ['Keyframes', 44], ['Acc', 46], ['ω', 40], ['Torque', 36], ['Jerk', 36]];
+const COLORS = { FINE2: '#E5484D', FINE1: '#E5484D', FINE0: '#E8A33D', CONT: '#3D6BFF', plain: '#8E8E8E' };
+const cv = document.getElementById('tlCanvas');
+const lanesEl = document.getElementById('lanes');
+const ctx = cv.getContext('2d');
+let ofs = {}, H = 0, thumbs = [];   // thumbs: {t, bmp}
+
+export function initTimeline() {
+  document.getElementById('laneHead').innerHTML =
+    ROWS.map(r => `<div style="height:${r[1]}px">${r[0] === 'film' ? '' : r[0]}</div>`).join('');
+  let y = 0; for (const [n, h] of ROWS) { ofs[n || 'ruler'] = [y, h]; y += h; } H = y;
+
+  const zoomEl = document.getElementById('zoomSlider');
+  zoomEl.addEventListener('input', () => setZoom(zoomEl.value / 100));
+  lanesEl.addEventListener('wheel', e => {
+    if (!state.duration || e.shiftKey) return;      // Shift+滾輪 → 讓頁面捲動
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) setZoom(state.zoom * (e.deltaY < 0 ? 1.15 : 0.87), pxToT(e.offsetX));
+    else set({ pan: clampPan(state.pan + e.deltaY * viewSpan() / 800) });
+  }, { passive: false });
+
+  let dragging = false, dragKf = -1;
+  lanesEl.addEventListener('pointerdown', e => {
+    const kf = hitKeyframe(e.offsetX, e.offsetY);
+    if (kf >= 0 && state.motionDoc) { dragKf = kf; emit('kfDragStart', { i: kf, t: state.keyframes[kf].time }); lanesEl.setPointerCapture(e.pointerId); return; }
+    const seg = hitAccBar(e.offsetX, e.offsetY);
+    if (seg >= 0) { emit('accClick', { seg, x: e.clientX, y: e.clientY }); return; }
+    dragging = true; seek(pxToT(e.offsetX));
+  });
+  lanesEl.addEventListener('pointermove', e => {
+    if (dragKf >= 0) { moveKeyframe(dragKf, pxToT(e.offsetX)); return; }
+    if (dragging) seek(pxToT(e.offsetX));
+    lanesEl.style.cursor = hitKeyframe(e.offsetX, e.offsetY) >= 0 && state.motionDoc ? 'ew-resize'
+                         : hitAccBar(e.offsetX, e.offsetY) >= 0 ? 'pointer' : 'crosshair';
+  });
+  addEventListener('pointerup', () => {
+    if (dragKf >= 0) { emit('kfMoved', dragKf); dragKf = -1; }
+    dragging = false;
+  });
+
+  on('change', draw);
+  new ResizeObserver(() => { fitCanvas(); draw(); }).observe(lanesEl);
+  fitCanvas(); draw();
+  on('change', p => { if ('files' in p && state.files.video) captureThumbs(); });
+}
+function fitCanvas() {
+  const dpr = devicePixelRatio || 1;
+  cv.width = lanesEl.clientWidth * dpr; cv.height = H * dpr;
+  cv.style.width = lanesEl.clientWidth + 'px'; cv.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+const viewSpan = () => (state.duration || 1) / state.zoom;
+const clampPan = p => Math.min(Math.max(p, 0), Math.max((state.duration || 0) - viewSpan(), 0));
+const tToPx = t => (t - state.pan) / viewSpan() * lanesEl.clientWidth;
+const pxToT = x => state.pan + x / lanesEl.clientWidth * viewSpan();
+function setZoom(z, anchorT = state.time) {
+  z = Math.min(Math.max(z, 1), 8);
+  const frac = (anchorT - state.pan) / viewSpan();
+  const span = (state.duration || 1) / z;
+  set({ zoom: z, pan: clampPan(anchorT - frac * span) });
+  document.getElementById('zoomSlider').value = z * 100;
+}
+
+async function captureThumbs() {
+  // 影片縮圖膠卷:離線 seek 抽 24 格(不干擾主播放器 —— 用複本)
+  thumbs = [];
+  const v = document.createElement('video');
+  v.src = video.src; v.muted = true;
+  await new Promise(r => v.addEventListener('loadedmetadata', r, { once: true }));
+  const n = 24, [ , fh ] = ofs['film'];
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n * v.duration;
+    v.currentTime = t;
+    await new Promise(r => v.addEventListener('seeked', r, { once: true }));
+    const w = Math.round(fh * v.videoWidth / v.videoHeight);
+    const c = new OffscreenCanvas(w, fh - 4);
+    c.getContext('2d').drawImage(v, 0, 0, w, fh - 4);
+    thumbs.push({ t, bmp: c.transferToImageBitmap() });
+    draw();
+  }
+}
+
+export function draw() {
+  const W = lanesEl.clientWidth;
+  ctx.clearRect(0, 0, W, H);
+  // 直欄格線 + 尺標(刻度隨縮放選擇 1/2/5/10s)
+  const span = viewSpan();
+  const step = span > 60 ? 10 : span > 25 ? 5 : span > 10 ? 2 : 1;
+  ctx.font = '10px Helvetica'; ctx.fillStyle = '#8E8E8E';
+  for (let t = Math.ceil(state.pan / step) * step; t <= state.pan + span; t += step) {
+    const x = tToPx(t);
+    ctx.strokeStyle = '#555'; line(x, 12, x, 20);
+    ctx.strokeStyle = '#191919'; line(x, 20, x, H);
+    ctx.fillText(t + 's', x + 4, 13);
+  }
+  for (const k in ofs) { const yy = ofs[k][0] + ofs[k][1]; ctx.strokeStyle = '#222'; line(0, yy, W, yy); }
+  // 膠卷
+  const [fy, fh] = ofs['film'];
+  ctx.fillStyle = '#161616'; ctx.fillRect(0, fy + 2, W, fh - 4);
+  for (const th of thumbs) {
+    const x = tToPx(th.t) - th.bmp.width / 2;
+    if (x + th.bmp.width > 0 && x < W) ctx.drawImage(th.bmp, x, fy + 2);
+  }
+  // 指標曲線
+  if (state.metrics) {
+    plot('ω', state.metrics.omega, '#7A96FF');
+    plot('Torque', state.metrics.torque, '#E8A33D');
+    plot('Jerk', state.metrics.jerk, '#F07178');
+  }
+  // Keyframes 軌:規劃切點(Keyframes 分頁)或動作關鍵幀(其他分頁)
+  if (state.tab === 'keyframes' && state.plan) {
+    const [ky0, kh] = ofs['Keyframes'];
+    const RC = { valley:'#4CAF50', hit:'#E5484D', infill:'#8E8E8E', hold:'#7A8EBF', start:'#C9C9C9', end:'#C9C9C9' };
+    for (const p of state.plan) {
+      const x = tToPx(p.t);
+      if (x < -4 || x > W + 4) continue;
+      ctx.strokeStyle = RC[p.reason] || '#8E8E8E'; ctx.lineWidth = p.reason === 'valley' || p.reason === 'hit' ? 2.5 : 1.5;
+      line(x, ky0 + 4, x, ky0 + kh - 4);
+    }
+  }
+  // 質感漸變帶:plain(灰)→ texture(綠),反向則相反
+  if (state.ramp?.on && state.ramp.end > state.ramp.start && state.tab !== 'keyframes') {
+    const [ky0, kh] = ofs['Keyframes'], [ay, ah] = ofs['Acc'];
+    const x0 = tToPx(state.ramp.start), x1 = tToPx(state.ramp.end);
+    const g = ctx.createLinearGradient(x0, 0, x1, 0);
+    const plain = 'rgba(142,142,142,0.22)', full = 'rgba(76,175,80,0.22)';
+    g.addColorStop(0, state.ramp.mode === 'in' ? plain : full);
+    g.addColorStop(1, state.ramp.mode === 'in' ? full : plain);
+    ctx.fillStyle = g; ctx.fillRect(x0, ky0, x1 - x0, kh + ah);
+    ctx.strokeStyle = '#4CAF50'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    line(x0, ky0, x0, ay + ah); line(x1, ky0, x1, ay + ah); ctx.setLineDash([]);
+    ctx.fillStyle = '#9E9E9E'; ctx.font = '10px Helvetica';
+    ctx.fillText(state.ramp.mode === 'in' ? 'plain → texture' : 'texture → plain', Math.max(x0 + 4, 4), ky0 + 10);
+  }
+  const tex = indexTexture();
+  if (state.keyframes) {
+    const [ky0, kh] = ofs['Keyframes'], ky = ky0 + kh / 2;
+    const [ay, ah] = ofs['Acc'];
+    const ks = state.keyframes;
+    for (let i = 0; i < ks.length; i++) {
+      const t = ks[i].time, x = tToPx(t);
+      const info = tex?.get(round3(t));
+      const col = info ? COLORS[info.smooth] || COLORS.plain : COLORS.plain;
+      if (x > -20 && x < W + 20) {
+        if (info?.sat) { ctx.strokeStyle = '#E5484D'; ctx.lineWidth = 1.5; ctx.strokeRect(x - 8, ky0 + 2, 16, kh - 4); }
+        ctx.strokeStyle = col; ctx.lineWidth = 2; line(x, ky0 + 4, x, ky0 + kh - 4);
+        ctx.save(); ctx.translate(x, ky); ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = col; ctx.fillRect(-4.5, -4.5, 9, 9); ctx.restore();
+      }
+      if (info && i < ks.length - 1) {
+        const x1 = tToPx(ks[i + 1].time);
+        const hh = (info.acc || 0) / 100 * (ah - 10);
+        ctx.fillStyle = col;
+        if (x1 > 0 && x < W) ctx.fillRect(x + 1.5, ay + ah - 4 - hh, Math.max(x1 - x - 3, 2), hh);
+      }
+    }
+  }
+  // 播放頭
+  const px = tToPx(state.time);
+  ctx.strokeStyle = '#4CAF50'; ctx.lineWidth = 2; line(px, 0, px, H);
+  document.getElementById('rangeLabel').textContent =
+    state.duration ? `${state.pan.toFixed(1)}s — ${(state.pan + span).toFixed(1)}s` : '—';
+}
+function plot(lane, ys, color) {
+  const [y0, h] = ofs[lane], ts = state.metrics.t, W = lanesEl.clientWidth;
+  let max = 0; for (const v of ys) if (v > max) max = v;
+  ctx.strokeStyle = color; ctx.lineWidth = 1.4; ctx.beginPath();
+  let started = false;
+  for (let i = 0; i < ts.length; i++) {
+    const x = tToPx(ts[i]);
+    if (x < -2 || x > W + 2) { started = false; continue; }
+    const y = y0 + h - 3 - (ys[i] / (max || 1)) * (h - 8);
+    started ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), started = true);
+  }
+  ctx.stroke();
+}
+function indexTexture() {
+  if (!state.texture) return null;
+  const m = new Map();
+  for (const p of state.texture.timeline) if (p.role !== 'wait') m.set(round3(p.t), p);
+  return m;
+}
+const round3 = t => Math.round(t * 1000) / 1000;
+
+// ---- 命中測試與拖曳(M4)----
+function hitKeyframe(x, y) {
+  if (!state.keyframes || state.tab === 'keyframes') return -1;
+  const [ky0, kh] = ofs['Keyframes'];
+  if (y < ky0 || y > ky0 + kh) return -1;
+  let best = -1, bd = 7;
+  state.keyframes.forEach((k, i) => {
+    const d = Math.abs(tToPx(k.time) - x);
+    if (d < bd) { bd = d; best = i; }
+  });
+  return best;
+}
+function hitAccBar(x, y) {
+  if (!state.keyframes || !state.texture) return -1;
+  const [ay, ah] = ofs['Acc'];
+  if (y < ay || y > ay + ah) return -1;
+  const t = pxToT(x);
+  for (let i = 0; i < state.keyframes.length - 1; i++)
+    if (t >= state.keyframes[i].time && t < state.keyframes[i + 1].time) return i + 1; // 段=抵達幀索引
+  return -1;
+}
+function moveKeyframe(i, t) {
+  const ks = state.keyframes, fr = 1 / state.fps;
+  const lo = (ks[i - 1]?.time ?? 0) + fr, hi = (ks[i + 1]?.time ?? state.duration) - fr;
+  t = Math.round(Math.min(Math.max(t, lo), hi) * state.fps) / state.fps;   // 夾鄰居、吸附影格
+  ks[i] = { ...ks[i], time: round3(t) };
+  if (state.motionDoc) {
+    const jd = state.motionDoc.jointsData.filter(k => k.group !== 'wait');
+    if (jd[i]) jd[i].time = round3(t);
+  }
+  set({ keyframes: [...ks] });
+}
+export { moveKeyframe };
+function line(a, b, c, d) { ctx.beginPath(); ctx.moveTo(a, b); ctx.lineTo(c, d); ctx.stroke(); }

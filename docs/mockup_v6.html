@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TwinPose Texturizer</title>
+<style>
+:root{
+  --black:#000; --panel:#464646; --panel2:#3A3A3A;
+  --tx:#FFF; --tx2:#C9C9C9; --dim:#8E8E8E;
+  --green:#4CAF50; --green2:#3E9142; --err:#E5484D;
+  --cont:#3D6BFF; --fine0:#E8A33D; --fine1:#E5484D; --fine2:#E5484D;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--black);color:var(--tx);font-family:Helvetica,Arial,"Noto Sans TC",sans-serif;font-size:15px;display:flex;flex-direction:column;overflow:hidden}
+button{font-family:inherit;cursor:pointer;color:inherit;border:none;background:none}
+.btn{background:#262626;border-radius:10px;color:#fff;font-size:15px;padding:9px 20px}
+.btn:hover{background:#333}
+.btn.green{background:var(--green)}.btn.green:hover{background:var(--green2)}
+.gbtn{background:#5A5A5A;border-radius:6px;font-size:13.5px;padding:6px 15px;color:#fff}
+.gbtn:hover{background:#666}
+.gbtn.green{background:var(--green)}.gbtn.green:hover{background:var(--green2)}
+
+/* ── 頂列 ── */
+.top{display:flex;align-items:center;gap:14px;height:54px;padding:0 16px;border-bottom:1px solid #1E1E1E;flex:none}
+.mark{font-size:18px;font-weight:700}
+.mark span{color:var(--green)}
+.steps{display:flex;gap:4px;margin-left:6px}
+.step{border-radius:9px;color:var(--dim);font-size:14.5px;padding:8px 15px}
+.step.on{background:#262626;color:#fff}
+.spacer{flex:1}
+.toggle{display:flex;align-items:center;gap:8px;font-size:14px;color:#DADADA}
+.tg{width:40px;height:21px;background:#555;border-radius:12px;position:relative}
+.tg.on{background:var(--green)}
+.tg::after{content:"";position:absolute;left:2px;top:2px;width:17px;height:17px;border-radius:50%;background:#EEE}
+.tg.on::after{left:21px}
+.saved{font-size:12px;color:var(--dim)}
+
+/* ── 主區:左(影片+時間軸同寬直排) 右(側欄整高) ── */
+.main{display:grid;grid-template-columns:1fr 312px;flex:1;min-height:0}
+.stage{display:flex;flex-direction:column;padding:12px 14px;gap:8px;min-width:0}
+.video{flex:1;min-height:120px;background:#0A0A0A;border:1px solid #1E1E1E;position:relative;display:flex;align-items:center;justify-content:center}
+.video .ph{color:#666;font-size:14px;text-align:center;line-height:2}
+.vtime{position:absolute;left:10px;bottom:8px;font-size:14px;text-shadow:0 1px 3px #000}
+.transport{flex:none;display:flex;flex-direction:column;align-items:center;gap:4px}
+.tbtns{display:flex;gap:10px}
+.thint{color:#6E6E6E;font-size:12px}
+
+/* 時間軸:與影片同寬,直接在下方 */
+.tlwrap{flex:none;height:296px;display:grid;grid-template-columns:88px 1fr;border:1px solid #2A2A2A;background:#0D0D0D}
+.lanehead div{display:flex;align-items:center;padding:0 9px;font-size:12px;color:#9E9E9E;border-bottom:1px solid #222;border-right:1px solid #222}
+.lanes{position:relative;overflow:hidden}
+.playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--green);left:34%;z-index:5;pointer-events:none}
+.zoom{flex:none;display:flex;align-items:center;gap:12px;height:30px;color:#9E9E9E;font-size:13px}
+.zoom input{flex:0 0 170px;accent-color:var(--green)}
+.credit{margin-left:auto;font-size:12px;color:#6E6E6E}
+
+/* ── 右欄 ── */
+.rail{background:var(--panel);padding:16px;display:flex;flex-direction:column;gap:15px;overflow-y:auto}
+details.robots{font-size:13px;color:#CFCFCF}
+details.robots summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;color:#DADADA}
+details.robots summary::-webkit-details-marker{display:none}
+details.robots summary .arrow{transition:.15s;font-size:11px;color:#9E9E9E}
+details.robots[open] summary .arrow{transform:rotate(90deg)}
+details.robots summary b{font-weight:700;color:#fff}
+details.robots .cal{font-size:11px;color:var(--green)}
+details.robots .list{padding:8px 0 2px 20px;line-height:2;color:#B9B9B9}
+details.robots .list div:hover{color:#fff;cursor:pointer}
+.hr{border-top:1px solid #575757}
+.slot{display:flex;align-items:center;gap:8px;font-size:13.5px;padding:5px 0;color:#EDEDED}
+.slot .k{width:54px;color:#B5B5B5;flex:none}
+.slot .fn{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot .ok{color:var(--green)}
+.slider{display:grid;grid-template-columns:92px 1fr 52px;align-items:center;gap:10px;margin-bottom:9px;font-size:14px}
+.slider input[type=range]{width:100%;accent-color:var(--green);height:3px}
+.sval{background:#2E2E2E;text-align:right;padding:3px 8px;font-size:13.5px;border-radius:4px}
+.errbox{background:var(--panel2);border-radius:6px;padding:11px 12px}
+.errsum{display:flex;align-items:baseline;gap:8px;margin-bottom:4px}
+.errsum .n{font-size:23px;font-weight:700;color:var(--err)}
+.errsum .lbl{font-size:12.5px;color:var(--tx2)}
+.err{display:flex;gap:8px;padding:6px 4px;font-size:13px;align-items:baseline;cursor:pointer;border-radius:5px}
+.err:hover{background:#454545}
+.err .dot{width:8px;height:8px;background:var(--err);flex:none;transform:translateY(1px)}
+.err .t{color:#B5B5B5;font-size:12.5px;flex:none}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:#DADADA}
+.legend i{display:inline-block;width:10px;height:10px;margin-right:6px;border-radius:2px}
+
+/* ── Code Editor ── */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;align-items:center;justify-content:center;z-index:50}
+.modal.open{display:flex}
+.sheet{width:min(780px,93vw);max-height:86vh;background:var(--panel);border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+.sheet h2{font-size:15.5px;padding:14px 18px;background:var(--panel2)}
+.sheet h2 b{color:var(--green);margin-right:10px}
+.stats{display:flex;gap:18px;padding:10px 18px;font-size:13px;color:#C9C9C9;flex-wrap:wrap}
+.stats b{color:#fff}
+.warnline{margin:0 18px;padding:8px 12px;background:#3A2A2A;color:#F0B7B9;font-size:12.5px;border-radius:5px}
+.code{flex:1;overflow:auto;margin:12px 18px;background:#0D0D0D;border-radius:6px;padding:12px 14px;font-family:Menlo,Consolas,monospace;font-size:12.5px;line-height:1.75;white-space:pre}
+.code .c{color:#6E6E6E}.code .fine{color:#F07178}.code .cont{color:#7A96FF}.code .ax{color:#ABABAB}
+.sheetfoot{display:flex;gap:10px;padding:13px 18px;background:var(--panel2);justify-content:flex-end}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="mark">TwinPose <span>Texturizer</span></div>
+  <nav class="steps">
+    <button class="step">Keyframes</button>
+    <button class="step">Metrics</button>
+    <button class="step on">Texture</button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="toggle"><span class="tg on"></span>Local Save</div>
+  <button class="gbtn">Import</button>
+  <button class="gbtn">Export</button>
+  <span class="saved">saved 16:42</span>
+  <button class="btn green" onclick="document.getElementById('m').classList.add('open')">Code Editor</button>
+</div>
+
+<div class="main">
+  <div class="stage">
+    <div class="video">
+      <div class="ph">Select Video<br><span style="font-size:12px;color:#555">Files stay in your browser — nothing is uploaded</span></div>
+      <div class="vtime">0:26.53 / 1:18.04 · frame 796</div>
+    </div>
+    <div class="transport">
+      <div class="tbtns"><button class="btn">⏮</button><button class="btn">Play</button><button class="btn">⏭</button></div>
+      <div class="thint">space play · ← → frame · [ ] prev/next keyframe · drag ◆ to retime</div>
+    </div>
+    <div class="tlwrap">
+      <div class="lanehead" id="lh"></div>
+      <div class="lanes" id="lanes"><div class="playhead"></div></div>
+    </div>
+    <div class="zoom">
+      <span>Zoom</span><input type="range" min="1" max="8" value="2">
+      <span>0s — 78.04s</span>
+      <span class="credit">Created by Michi Wang</span>
+    </div>
+  </div>
+
+  <aside class="rail">
+    <details class="robots">
+      <summary><span class="arrow">▶</span>Robot&nbsp;<b>Hiwin 1476</b><span class="cal">calibrated</span></summary>
+      <div class="list"><div>Hiwin 1621</div><div>Hiwin 710</div><div>Hiwin 1869</div></div>
+    </details>
+    <div class="hr"></div>
+    <div>
+      <div class="slot"><span class="k">Video</span><span class="fn">0904demo.mp4</span><span class="ok">✓</span></div>
+      <div class="slot"><span class="k">Motion</span><span class="fn">0904_final_turnfix.hrb</span><span class="ok">✓</span></div>
+      <div class="slot"><span class="k">Metrics</span><span class="fn">SmoothedMetrics_0904.csv</span><span class="ok">✓</span></div>
+      <div class="slot" style="color:#9A9A9A"><span class="k">＋</span><span class="fn">drop file to replace</span></div>
+    </div>
+    <div class="hr"></div>
+    <div>
+      <div class="slider"><span>torque gain</span><input type="range" min="20" max="250" value="100"><span class="sval">1.0</span></div>
+      <div class="slider"><span>jerk gain</span><input type="range" min="20" max="250" value="150"><span class="sval">1.5</span></div>
+      <div class="slider"><span>sensitivity</span><input type="range" min="10" max="90" value="45"><span class="sval">45</span></div>
+      <button class="gbtn green" style="width:100%;padding:10px;margin-top:4px">Apply Texture</button>
+    </div>
+    <div class="errbox">
+      <div class="errsum"><span class="n">2</span><span class="lbl">segments exceed arm limits</span></div>
+      <div class="err"><span class="dot"></span><span class="t">21.69s</span><span>J1 needs 1.68s, has 0.47s</span></div>
+      <div class="err"><span class="dot"></span><span class="t">57.85s</span><span>J1 needs 1.41s, has 0.73s</span></div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--fine1)"></i>FINE=1,2</span>
+      <span><i style="background:var(--fine0)"></i>FINE=0</span>
+      <span><i style="background:var(--cont)"></i>CONT</span>
+    </div>
+  </aside>
+</div>
+
+<div class="modal" id="m">
+  <div class="sheet">
+    <h2><b>&lt;/&gt;</b>Code Editor — 0904_textured.hrb</h2>
+    <div class="stats">
+      <span><b>84</b> commands</span><span><b>26</b> anchors</span>
+      <span><b>58</b> flow</span><span>runtime <b>78.04s</b></span><span>Acc <b>30–100%</b></span>
+    </div>
+    <div class="warnline">2 segments still exceed arm limits (21.69s, 57.85s) — contrast will flatten there.</div>
+    <div class="code"><span class="c">;Version:310
+;[Program&SV2]
+; 0904DEMO | textured by TwinPose Texturizer</span>
+
+<span class="c">; &lt;Pose 5&gt; anchor @ 2.93s</span>
+<span class="ax">E6AXIS P5={A1 -12.4,A2 -31.0,A3 46.1,A4 0.0,A5 63.2,A6 -7.8}</span>
+<span class="fine">PTP_TIME P5 FINE=0 TIME=379 msec Acc=58% TOOL[0] BASE[0]</span>
+
+<span class="c">; &lt;Pose 6&gt; flow @ 3.43s</span>
+<span class="ax">E6AXIS P6={A1 3.1,A2 -28.4,A3 39.7,A4 0.1,A5 58.9,A6 -6.2}</span>
+<span class="cont">PTP_TIME P6 CONT TIME=1102 msec Acc=69% TOOL[0] BASE[0]</span>
+
+<span class="c">; … scroll for all 84 lines</span></div>
+    <div class="sheetfoot">
+      <button class="gbtn" onclick="document.getElementById('m').classList.remove('open')">Back</button>
+      <button class="gbtn green">Download .hrb</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ROWS=[["",20],["film",34],["Keyframes",44],["Acc",46],["ω",40],["Torque",36],["Jerk",36]];
+const H=ROWS.reduce((a,r)=>a+r[1],0);
+document.getElementById('lh').innerHTML=ROWS.map(r=>`<div style="height:${r[1]}px">${r[0]==='film'?'':r[0]}</div>`).join('');
+const laneEl=document.getElementById('lanes');
+function draw(){
+ laneEl.querySelectorAll('svg').forEach(e=>e.remove());
+ const W=laneEl.clientWidth, DUR=78.04, X=t=>t/DUR*W;
+ let y=0, ofs={}; for(const [n,h] of ROWS){ofs[n||'ruler']=[y,h]; y+=h;}
+ let s=`<svg width="${W}" height="${H}">`;
+ for(const k in ofs){const yy=ofs[k][0]+ofs[k][1];s+=`<line x1=0 x2=${W} y1=${yy} y2=${yy} stroke="#222"/>`;}
+ for(let t=0;t<=DUR;t+=5){s+=`<line x1=${X(t)} x2=${X(t)} y1=12 y2=20 stroke="#555"/><text x=${X(t)+4} y=13 fill="#8E8E8E" font-size=10>${t}s</text><line x1=${X(t)} x2=${X(t)} y1=20 y2=${H} stroke="#191919"/>`;}
+ const [fy,fh]=ofs['film'];
+ for(let i=0;i<26;i++){const g=20+((i*37)%20);s+=`<rect x=${i*W/26+1} y=${fy+2} width=${W/26-2} height=${fh-4} fill="rgb(${g},${g},${g+2})"/>`;}
+ function curve(key,color,a,b){const [y0,h]=ofs[key];let pts=[];
+  for(let i=0;i<=200;i++){const t=i/200;let v=.45+.32*Math.sin(t*29+a)+.22*Math.sin(t*61+b)+.12*Math.sin(t*7+a*2);v=Math.max(.04,Math.min(1,v));
+   for(const g of[.19,.32,.415,.62,.83,.94])v*=1-.85*Math.exp(-((t-g)**2)/.00012);
+   pts.push([t*W,y0+h-3-v*(h-8)]);}
+  s+=`<path d="M${pts.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join('L')}" fill="none" stroke="${color}" stroke-width="1.4"/>`;}
+ curve('ω','#7A96FF',1.3,4.1);
+ curve('Torque','#E8A33D',2.7,1.9);
+ curve('Jerk','#F07178',5.2,3.3);
+ const kfs=[[0,'f1'],[1.5,'c'],[2.9,'f0'],[4.0,'c'],[5.9,'c'],[7.7,'c'],[9.1,'f0'],[10.6,'f0'],[12.6,'c'],[14.2,'c'],[16.0,'f1'],[17.7,'c'],[19.4,'c'],[21.7,'c','e'],[23.1,'c'],[25.1,'f0'],[27.6,'f0'],[29.4,'c'],[31.3,'c'],[32.4,'f1'],[34.6,'c'],[36.2,'f0'],[38.0,'c'],[39.7,'c'],[41.5,'c'],[43.6,'c'],[45.4,'c'],[47.7,'f1'],[49.3,'c'],[50.6,'f0'],[52.3,'c'],[54.1,'c'],[55.8,'c'],[57.85,'c','e'],[59.4,'c'],[61.3,'f0'],[63.1,'c'],[64.9,'c'],[66.6,'c'],[68.98,'f1'],[70.4,'c'],[72.7,'c'],[74.1,'c'],[75.6,'c'],[77.0,'c'],[78.04,'f0']];
+ const C={f2:'#E5484D',f1:'#E5484D',f0:'#E8A33D',c:'#3D6BFF'};
+ const [ky0,kh]=ofs['Keyframes'],ky=ky0+kh/2;
+ for(const[t,k,e]of kfs){
+  s+=`<line x1=${X(t)} x2=${X(t)} y1=${ky0+4} y2=${ky0+kh-4} stroke="${C[k]}" stroke-width="2"/>`;
+  if(e)s+=`<rect x=${X(t)-8} y=${ky0+2} width=16 height=${kh-4} fill="none" stroke="#E5484D" stroke-width="1.5"/>`;
+  s+=`<rect x=${X(t)-4.5} y=${ky-4.5} width=9 height=9 fill="${C[k]}" transform="rotate(45 ${X(t)} ${ky})"><title>${t}s</title></rect>`;}
+ const [ay,ah]=ofs['Acc'];
+ for(let i=0;i<kfs.length-1;i++){const[t0]=kfs[i],[t1,k]=kfs[i+1];
+  const acc=30+70*Math.abs(Math.sin(i*2.7+1)),hh=acc/100*(ah-10);
+  s+=`<rect x=${X(t0)+1.5} y=${ay+ah-4-hh} width=${Math.max(X(t1)-X(t0)-3,2)} height=${hh} fill="${C[k]}"><title>Acc ${acc|0}% (click to edit)</title></rect>`;}
+ s+='</svg>';
+ laneEl.insertAdjacentHTML('beforeend',s);
+}
+draw(); addEventListener('resize',draw);
+</script>
+</body>
+</html>
