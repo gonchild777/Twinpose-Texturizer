@@ -1,10 +1,10 @@
 import { state, set, on, emit } from './store.js';
-import { wireFileInputs, mark } from './files.js';
+import { wireFileInputs, mark, editedMotionText } from './files.js';
 import { initVideo, loadVideoFile } from './video.js';
 import { initTimeline } from './timeline.js';
 import { initEngine, engineReady, applyTexture } from './bridge.js';
 import { initPlan } from './plan.js';
-import { initTimefix, timefixSheet } from './timefix.js';
+import { initTimefix, timefixSheet, rerunTimefix } from './timefix.js';
 
 initVideo();
 initTimeline();
@@ -41,12 +41,15 @@ async function runApply() {
   applyBtn.textContent = 'Computing…';
   try {
     // 有編輯過 → 傳編輯後的 motionDoc;否則傳原檔
-    const motionText = state.motionDoc ? JSON.stringify(state.motionDoc) : await state.files.motion.text();
+    const motionText = editedMotionText();
     const tex = await applyTexture({ motionText, motionExt: state.motionExt,
                                      metricsFile: state.files.metrics,
                                      gains: { ...state.gains, acc_overrides: state.accOverrides,
                                               ramp: state.ramp.on && state.ramp.end > state.ramp.start
                                                     ? { start: state.ramp.start, end: state.ramp.end, mode: state.ramp.mode } : null } });
+    const msg = document.getElementById('applyMsg');
+    msg.classList.toggle('show', !!tex.error); msg.textContent = tex.error || '';
+    if (tex.error) { set({ texture: null }); document.getElementById('codeBtn').disabled = true; applyBtn.textContent = 'Apply Texture'; busy = false; return; }
     set({ texture: tex });
     renderErrors(tex);
     document.getElementById('codeBtn').disabled = false;
@@ -188,9 +191,13 @@ on('kfMoved', i => {
   if (oldT !== undefined && oldT !== state.keyframes[i].time)
     pushUndo({ type: 'kf', i, oldT, newT: state.keyframes[i].time });
   kfDragStart = null;
-  if (state.texture) debounceApply();
+  afterKfEdit();
 });
 let applyTimer;
+function afterKfEdit() {
+  if (state.tab === 'timefix') rerunTimefix();
+  else if (state.texture) debounceApply();
+}
 function debounceApply() { clearTimeout(applyTimer); applyTimer = setTimeout(runApply, 350); }
 
 function pushUndo(op) { state.undo.push(op); state.redo.length = 0; }
@@ -211,7 +218,7 @@ addEventListener('keydown', e => {
     to.push({ ...op, oldT: state.keyframes[op.i].time, newT: op.oldT });
     import('./timeline.js').then(m => m.moveKeyframe(op.i, e.shiftKey ? op.newT : op.oldT));
   }
-  if (state.texture) debounceApply();
+  afterKfEdit();
 });
 
 // ==== M6:.twtx 專案存檔 + Local Save 自動儲存 ====

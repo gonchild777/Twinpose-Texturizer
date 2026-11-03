@@ -244,6 +244,7 @@ input[type=file]{display:none}
         <div class="hint">Blends from no texture (every point FINE=1, Acc 100) to full texture across the interval. Acc eases continuously; the most flowing passages unlock CONT first. Timing stays locked.</div>
       </div>
       <button class="gbtn green" id="applyBtn" style="width:100%;padding:10px;margin-top:4px" disabled>Apply Texture</button>
+      <div class="warnline" id="applyMsg" style="margin:8px 0 0"></div>
       <div class="status" id="engineStatus">engine: loading…</div>
     </div>
     <div class="errbox" id="errBox">
@@ -266,9 +267,12 @@ input[type=file]{display:none}
         <div><span>This version</span><b id="tfFixed">—</b></div>
         <div><span>Moves the arm can't make</span><b id="tfSat">—</b></div>
       </div>
+      <div class="toggle" id="tfAuto"><span class="tg on"></span>Auto-repay what's left</div>
+      <div class="hint">On: time lost on moves the arm can't make is taken back from the next relaxed moves automatically. Off: only the 66 ms is corrected, and you fix the red moves yourself by dragging keyframes on the timeline.</div>
       <div class="toggle" id="tfTimer"><span class="tg on"></span>Add $T[1] timer</div>
       <div class="hint">Timer starts after WAIT FOR $DI (your recording trigger) if the file has one, otherwise after the entry move.</div>
       <button class="gbtn green" id="tfBtn" style="width:100%;padding:10px" disabled>Fix Timing</button>
+      <div class="warnline" id="tfMsg" style="margin:0"></div>
       <div class="hint">Only TIME values change. Each FINE=1 line gives back the 66 ms the controller adds, and time lost on moves the arm can't make is repaid from the next relaxed moves. Angles, FINE, Acc and every other line stay as exported.</div>
       <div class="hr"></div>
       <div class="tftitle">Calibrate with a test run</div>
@@ -280,7 +284,12 @@ input[type=file]{display:none}
       <table class="tflog" id="tfLog"></table>
       <button class="gbtn tiny" id="tfClear" style="margin-left:0;display:none">Clear runs</button>
       <div class="tftitle" id="tfSatTitle" style="display:none">Moves the arm can't make</div>
+      <div class="hint" id="tfSatHint" style="display:none">Click a row to jump there. Drag the keyframe at the end of a red move later to give it more time; the next move gets shorter and the total length stays the same.</div>
       <div id="tfSatList"></div>
+      <div class="ramprow" style="margin-top:6px">
+        <button class="gbtn tiny" id="tfListDl" style="margin-left:0;display:none">Download list (.csv)</button>
+        <button class="gbtn tiny" id="tfReset" style="margin-left:0;display:none">Reset keyframe edits</button>
+      </div>
     </div>
   </aside>
 </div>

@@ -26,7 +26,7 @@ export function initTimeline() {
   let dragging = false, dragKf = -1;
   lanesEl.addEventListener('pointerdown', e => {
     const kf = hitKeyframe(e.offsetX, e.offsetY);
-    if (kf >= 0 && state.motionDoc) { dragKf = kf; emit('kfDragStart', { i: kf, t: state.keyframes[kf].time }); lanesEl.setPointerCapture(e.pointerId); return; }
+    if (kf > 0) { dragKf = kf; emit('kfDragStart', { i: kf, t: state.keyframes[kf].time }); lanesEl.setPointerCapture(e.pointerId); return; }
     const seg = hitAccBar(e.offsetX, e.offsetY);
     if (seg >= 0) { emit('accClick', { seg, x: e.clientX, y: e.clientY }); return; }
     dragging = true; seek(pxToT(e.offsetX));
@@ -34,7 +34,7 @@ export function initTimeline() {
   lanesEl.addEventListener('pointermove', e => {
     if (dragKf >= 0) { moveKeyframe(dragKf, pxToT(e.offsetX)); return; }
     if (dragging) seek(pxToT(e.offsetX));
-    lanesEl.style.cursor = hitKeyframe(e.offsetX, e.offsetY) >= 0 && state.motionDoc ? 'ew-resize'
+    lanesEl.style.cursor = hitKeyframe(e.offsetX, e.offsetY) > 0 ? 'ew-resize'
                          : hitAccBar(e.offsetX, e.offsetY) >= 0 ? 'pointer' : 'crosshair';
   });
   addEventListener('pointerup', () => {
@@ -174,8 +174,11 @@ export function draw() {
       ctx.strokeStyle = '#E5484D'; ctx.lineWidth = 1.5; ctx.strokeRect(x - 8, ky0 + 2, 16, kh - 4);
       ctx.fillStyle = '#E5484D'; ctx.fillRect(x0 + 1.5, ay + 4, Math.max(x - x0 - 3, 2), 4);
     }
+    if (state.kfOriginal) for (let i = 1; i < ks.length; i++) {      // 你移動過的關鍵幀:白點
+      if (Math.abs(ks[i].time - state.kfOriginal[i]) > 1e-4) { ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(tToPx(ks[i].time), ky0 + 6, 3, 0, 7); ctx.fill(); }
+    }
     ctx.fillStyle = '#9E9E9E'; ctx.font = '10px Helvetica';
-    ctx.fillText('green = time repaid · red = arm can\'t keep up', 6, ay + 11);
+    ctx.fillText('green = time repaid · red = arm can\'t keep up · white dot = moved by you', 6, ay + 11);
   }
   // 播放頭
   const px = tToPx(state.time);
@@ -206,7 +209,7 @@ const round3 = t => Math.round(t * 1000) / 1000;
 
 // ---- 命中測試與拖曳(M4)----
 function hitKeyframe(x, y) {
-  if (!state.keyframes || state.tab !== 'texture') return -1;
+  if (!state.keyframes || (state.tab !== 'texture' && state.tab !== 'timefix')) return -1;
   const [ky0, kh] = ofs['Keyframes'];
   if (y < ky0 || y > ky0 + kh) return -1;
   let best = -1, bd = 7;

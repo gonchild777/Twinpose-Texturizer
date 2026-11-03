@@ -48,6 +48,11 @@ TwinPose 直接下載的 .hrb 把每段 TIME 寫成關鍵幀間隔,但 HRSS 每�
 快速大動作還會被拖長 —— dance0719(3:14)直出實跑 3:29。
 Time Fix 分頁:Motion 放 TwinPose 的 .hrb(或 .json)→ **Fix Timing** → Code Editor 下載。
 只改 TIME 數字(角度、FINE、Acc、WAIT FOR $DI 等其他行原樣保留),可選插入 $T[1] 計時器。
+**手動調整**:關掉 Auto-repay,清單列出每個跟不上的動作還差幾 ms(點一下跳過去);
+在時間軸上把紅框那段結尾的關鍵幀往後拖,那段就多出時間、下一段變短,總長不變。
+關鍵幀編輯 Texturizer 與 Time Fix 共用,Ctrl+Z 可復原,Reset keyframe edits 一鍵還原。
+**回 TwinPose 修**:Download list (.csv) 列出每個跟不上的動作:起訖秒數、30fps 幀號、主導軸與角度、
+TwinPose 裡目前間隔、最少要給多少(已含 66ms)、要加幾 ms。改完重新匯出再檢查;最後仍需過一次 Time Fix 補 66ms。
 **最準的用法是閉環**:跑一次 → 把 $T[1] 填進 Calibrate → 自動出下一版,通常 1–2 次到 ±0.3%。
 預設參數由 dance0719 五次實測校正(直出 208.719 → v4 193.422,目標 194.0)。
 CLI:`python calibration/twinpose_timefix.py in.hrb -o out.hrb --timer [--measured GAIN:SEC]`

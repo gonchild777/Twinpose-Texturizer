@@ -3,6 +3,7 @@
 import { state, set } from './store.js';
 import { timeFix, engineReady } from './bridge.js';
 import { seek } from './video.js';
+import { editedMotionText, keyframesEdited } from './files.js';
 
 const $ = id => document.getElementById(id);
 const histKey = () => 'tf_hist::' + (state.files.motion?.name || '');
@@ -11,16 +12,38 @@ export function initTimefix() {
   setInterval(() => {
     const ok = !!state.files.motion && engineReady();
     $('tfBtn').disabled = !ok;
-    $('tfRefine').disabled = !(ok && state.timefix);
+    $('tfRefine').disabled = !(ok && state.timefix && state.tfAuto);
   }, 400);
   $('tfTimer').onclick = () => {
     set({ tfTimer: !state.tfTimer });
     $('tfTimer').querySelector('.tg').classList.toggle('on', state.tfTimer);
     if (state.timefix) run(state.timefix.gain, false);   // 同一版,只換計時器
   };
-  $('tfBtn').onclick = () => { loadHistory(); run(lastUnmeasuredGain(), true); };
+  $('tfBtn').onclick = () => {
+    if (+$('tfMeasured').value) return refine();          // 填了實測卻按 Fix → 照樣採用
+    loadHistory(); run(currentGain(), true);
+  };
   $('tfRefine').onclick = refine;
+  $('tfAuto').onclick = () => {
+    set({ tfAuto: !state.tfAuto });
+    $('tfAuto').querySelector('.tg').classList.toggle('on', state.tfAuto);
+    if (state.timefix) run(state.tfAuto ? currentGain() : 0, false); else label();
+  };
+  $('tfListDl').onclick = downloadList;
+  $('tfReset').onclick = () => {
+    if (!state.kfOriginal) return;
+    import('./timeline.js').then(m => { state.kfOriginal.forEach((t, i) => m.moveKeyframe(i, t)); rerunTimefix(); });
+  };
   $('tfMeasured').addEventListener('keydown', e => { if (e.key === 'Enter') refine(); });
+  $('tfMeasured').addEventListener('input', label);
+  // 換檔或切到 Time Fix 分頁:載入該檔紀錄,有紀錄就直接重出目前這一版
+  let lastKey = null;
+  setInterval(() => {
+    if (state.tab !== 'timefix' || !state.files.motion || !engineReady()) return;
+    const k = histKey(); if (k === lastKey) return;
+    lastKey = k; set({ timefix: null }); loadHistory();
+    if (state.tfHistory.length) run(currentGain(), true); else { $('tfLog').innerHTML = ''; label(); }
+  }, 300);
   $('tfClear').onclick = () => { set({ tfHistory: [] }); saveHistory(); run(null, true); };
 }
 
@@ -30,9 +53,31 @@ function loadHistory() {
 function saveHistory() {
   try { localStorage.setItem(histKey(), JSON.stringify(state.tfHistory)); } catch {}
 }
-function lastUnmeasuredGain() {
+const TOL = 0.003;
+const within = h => h.measured_s != null && state.timefix &&
+  Math.abs(h.measured_s - state.timefix.schedule_s) / state.timefix.schedule_s <= TOL;
+function bestDone() {                                   // 已達 ±0.3% 的版本中誤差最小者
+  const sched = state.timefix?.schedule_s ?? state.tfSched;
+  if (!sched) return null;
+  const ok = state.tfHistory.filter(h => h.measured_s != null && Math.abs(h.measured_s - sched) / sched <= TOL);
+  return ok.sort((a, b) => Math.abs(a.measured_s - sched) - Math.abs(b.measured_s - sched))[0] || null;
+}
+function currentGain() {
   const h = state.tfHistory.at(-1);
-  return h && h.measured_s == null ? h.gain : null;     // 有未實測的版本 → 重出同一版
+  if (h && h.measured_s == null) return h.gain;         // 還沒跑的版本 → 重出同一版
+  const done = bestDone();
+  if (done) return done.gain;                           // 已對準 → 重出最好的那一版
+  return null;                                          // 否則依實測算下一版
+}
+function label() {
+  const n = state.tfHistory.length;
+  const typed = +$('tfMeasured').value;
+  const last = state.tfHistory.at(-1);
+  $('tfBtn').textContent = !state.tfAuto ? (state.timefix ? 'Recompute' : 'Fix Timing')
+    : typed ? 'Use $T[1] → next version'
+    : !n ? 'Fix Timing'
+    : bestDone() && last?.measured_s != null ? `Regenerate v${bestDone().v} (on target)`
+    : last?.measured_s == null ? `Regenerate v${last.v}` : 'Make next version';
 }
 
 async function run(gain, recordVersion) {
@@ -40,16 +85,22 @@ async function run(gain, recordVersion) {
   try {
     const f = state.files.motion;
     const r = await timeFix({
-      motionText: await f.text(),
+      motionText: editedMotionText(),
       motionExt: f.name.endsWith('.json') ? '.json' : '.hrb',
       timer: state.tfTimer,
-      gain,                                  // null → 預設或依實測修正
+      gain: state.tfAuto ? gain : 0,         // null → 預設或依實測修正;關閉自動補償 → 0
       history: state.tfHistory.filter(h => h.measured_s != null),
     });
-    if (recordVersion) {
+    $('tfMsg').classList.toggle('show', !!r.error);
+    $('tfMsg').textContent = r.error || '';
+    if (r.error) { set({ timefix: null }); $('codeBtn').disabled = true; label(); return; }
+    set({ tfSched: r.schedule_s });
+    if (recordVersion && state.tfAuto) {
       const h = state.tfHistory, last = h.at(-1);
-      if (!last || last.measured_s != null) h.push({ v: Math.max(0, ...h.map(x => x.v)) + 1, gain: r.gain, measured_s: null });
-      else last.gain = r.gain;
+      const existing = h.find(x => Math.abs(x.gain - r.gain) < 1e-4);
+      if (existing) r.version = existing.v;                 // 同 gain = 同一版,不重複記
+      else if (!last || last.measured_s != null) { h.push({ v: Math.max(0, ...h.map(x => x.v)) + 1, gain: r.gain, measured_s: null }); r.version = h.at(-1).v; }
+      else { last.gain = r.gain; r.version = last.v; }
       saveHistory();
     }
     set({ timefix: r });
@@ -59,7 +110,7 @@ async function run(gain, recordVersion) {
     $('tfFixed').textContent = 'error';
     console.error(e);
   }
-  btn.textContent = 'Fix Timing';
+  label();
 }
 
 function refine() {
@@ -74,8 +125,31 @@ function refine() {
   $('tfMeasured').value = '';
   saveHistory();
   const err = (last.measured_s - state.timefix.schedule_s) / state.timefix.schedule_s;
-  if (Math.abs(err) <= 0.003) { render(); return; }     // 已在 ±0.3%,不再出新版
+  if (Math.abs(err) <= TOL) { render(); label(); return; }   // 已在 ±0.3%,不再出新版
   run(null, true);
+}
+
+// 跟不上的動作清單 → CSV(帶 BOM,Excel 直接開;欄位對應 TwinPose 裡要改的地方)
+function downloadList() {
+  const r = state.timefix; if (!r) return;
+  const head = ['point', 'from_s', 'to_s', 'to_frame_30fps', 'axis', 'axis_move_deg',
+                'twinpose_interval_ms', 'needs_at_least_ms', 'add_ms'];
+  const rows = r.saturated.map(x => [`P${x.p}`, x.from_t.toFixed(2), x.t.toFixed(2), Math.round(x.t * 30),
+    x.axis, x.delta_deg, x.orig_ms, x.need_orig_ms, x.need_orig_ms - x.orig_ms]);
+  const note = ['# Moves the arm cannot make in time. Fix in TwinPose: move the keyframe at to_s later by add_ms,',
+                '# or make the move smaller (axis_move_deg). Then export again and re-check in Time Fix.'];
+  const csv = '\uFEFF' + [...note, head.join(','), ...rows.map(r => r.join(','))].join('\n') + '\n';
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })),
+    download: (state.files.motion?.name || 'motion').replace(/\.(json|hrb)$/, '') + '_over_limit.csv' });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+let rerunTimer;
+export function rerunTimefix() {
+  if (!state.timefix && !state.files.motion) return;
+  clearTimeout(rerunTimer);
+  rerunTimer = setTimeout(() => run(state.tfAuto ? currentGain() : 0, false), 350);
 }
 
 const pct = (x, base) => `${x >= base ? '+' : ''}${((x - base) / base * 100).toFixed(2)}%`;
@@ -86,34 +160,42 @@ function render() {
   $('tfRaw').textContent = `≈ ${r.raw_pred_s.toFixed(1)} s (${pct(r.raw_pred_s, r.schedule_s)})`;
   $('tfRaw').className = Math.abs(r.raw_pred_s - r.schedule_s) / r.schedule_s > 0.01 ? 'bad' : '';
   $('tfFixed').textContent = `≈ ${r.fixed_pred_s.toFixed(1)} s`;
-  $('tfSat').textContent = `${r.saturated.length} · repaid ${r.repaid_s.toFixed(2)} s`;
+  const short = r.saturated.reduce((a, x) => a + Math.max(x.floor_ms - x.time_ms, 0), 0) / 1000;
+  $('tfSat').textContent = state.tfAuto ? `${r.saturated.length} · repaid ${r.repaid_s.toFixed(2)} s`
+                                        : `${r.saturated.length} · short ${short.toFixed(2)} s`;
+  $('tfSat').className = !state.tfAuto && r.saturated.length ? 'bad' : r.saturated.length ? '' : 'ok';
 
   // 實測紀錄
   const rows = state.tfHistory.map((h, i) => {
-    const cur = i === state.tfHistory.length - 1;
+    const curV = r.version ?? state.tfHistory.at(-1)?.v;
+    const cur = i === state.tfHistory.map(x => x.v).lastIndexOf(curV);   // 目前 Code Editor 裡的那一版
     const m = h.measured_s;
     const cls = m == null ? '' : Math.abs(m - r.schedule_s) / r.schedule_s <= 0.003 ? 'ok' : 'bad';
     return `<tr class="${cur ? 'cur' : ''}"><td>v${h.v}${h.rerun ? ' re-run' : ''}</td><td class="num">gain ${h.gain.toFixed(3)}</td>` +
       `<td class="num">${m == null ? (cur ? 'run this one' : '—') : m.toFixed(3) + ' s'}</td>` +
-      `<td class="num ${cls}">${m == null ? '' : pct(m, r.schedule_s)}</td></tr>`;
+      `<td class="num ${cls}">${m == null ? '' : pct(m, r.schedule_s) + (cls === 'ok' ? ' ✓' : '')}</td></tr>`;
   });
   $('tfLog').innerHTML = rows.join('');
   $('tfClear').style.display = state.tfHistory.some(h => h.measured_s != null) ? '' : 'none';
 
   // 跟不上的動作(點擊跳轉)
   $('tfSatTitle').style.display = r.saturated.length ? '' : 'none';
-  $('tfSatList').innerHTML = r.saturated.slice(0, 12).map(s =>
+  $('tfSatHint').style.display = r.saturated.length ? '' : 'none';
+  $('tfReset').style.display = keyframesEdited() ? '' : 'none';
+  $('tfListDl').style.display = r.saturated.length ? '' : 'none';
+  $('tfSatList').innerHTML = r.saturated.slice(0, 40).map(s =>
     `<div class="err" data-t="${s.t}"><span class="dot"></span><span class="t">${s.t.toFixed(2)}s</span>` +
-    `<span>P${s.p}: given ${(s.time_ms / 1000).toFixed(2)}s, needs ~${(s.floor_ms / 1000).toFixed(2)}s</span></div>`).join('');
+    `<span>P${s.p}: ${s.axis} ${s.delta_deg > 0 ? '+' : ''}${s.delta_deg}°, needs +${Math.max(s.floor_ms - s.time_ms, 1)} ms</span></div>`).join('');
   $('tfSatList').querySelectorAll('.err').forEach(el => el.onclick = () => seek(+el.dataset.t));
 }
 
 // Code Editor 用的資料
 export function timefixSheet() {
   const r = state.timefix; if (!r) return null;
-  const v = state.tfHistory.at(-1)?.v || 1;
+  const v = r.version || state.tfHistory.at(-1)?.v || 1;
   return {
-    name: (state.files.motion?.name || 'motion').replace(/\.(json|hrb)$/, '') + `_timefix_v${v}.hrb`,
+    name: (state.files.motion?.name || 'motion').replace(/\.(json|hrb)$/, '') +
+          (state.tfAuto ? `_timefix_v${v}` : '_timefix_manual') + (keyframesEdited() ? '_edited' : '') + '.hrb',
     stats: `<span>schedule <b>${r.schedule_s.toFixed(2)} s</b></span>` +
            `<span>as exported <b>≈ ${r.raw_pred_s.toFixed(1)} s</b></span>` +
            `<span>this version <b>≈ ${r.fixed_pred_s.toFixed(1)} s</b></span>` +

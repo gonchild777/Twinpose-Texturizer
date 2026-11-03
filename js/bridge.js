@@ -4,7 +4,7 @@ const pending = new Map();
 const statusEl = () => document.getElementById('engineStatus');
 
 export function initEngine() {
-  worker = new Worker('worker/py-worker.js?v=8');
+  worker = new Worker('worker/py-worker.js?v=11');
   worker.onmessage = e => {
     const { type, id, payload } = e.data;
     if (type === 'ready') { ready = true; statusEl().textContent = 'engine: ready ✓ (texturizer wheel loaded)'; }

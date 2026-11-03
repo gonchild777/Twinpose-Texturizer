@@ -12,6 +12,8 @@ export const state = {
   plan: null,           // 切點規劃 [{t, frame, reason}]
   motionDoc: null,      // TwinPose JSON 全文件(編輯關鍵幀時間時同步改這裡)
   motionExt: '.json',
+  motionRaw: '',        // 動作檔原文(.hrb 編輯時以此為底,只替換 TIME)
+  kfOriginal: null,     // 載入時的關鍵幀時間(Reset edits 用)
   accOverrides: {},     // {原始關鍵幀索引: Acc%}
   ramp: { on: false, mode: 'in', start: 0, end: 0 },   // 質感漸變區間
   undo: [], redo: [],
@@ -19,6 +21,8 @@ export const state = {
   timefix: null,        // Time Fix 結果(引擎 fix_timing)
   tfHistory: [],        // [{v, gain, measured_s}] 依版本順序
   tfTimer: true,
+  tfSched: null,
+  tfAuto: true,         // Time Fix:自動從寬裕段補回欠時        // 目前檔案的排程長度(s)
 };
 const subs = {};
 export function on(ev, fn){ (subs[ev] ||= []).push(fn); }

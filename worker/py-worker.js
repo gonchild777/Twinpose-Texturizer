@@ -30,8 +30,14 @@ def _plan_json(js):
     return plan_keyframes(p['metricsText'], p['params'])
 
 def _timefix_json(js):
-    from core.timefix import fix_timing, next_gain, json_to_hrb
+    from core.timefix import fix_timing, next_gain, json_to_hrb, AlreadyTimedError
     p = json.loads(js)
+    try:
+        return _timefix_inner(p, fix_timing, next_gain, json_to_hrb)
+    except AlreadyTimedError as e:
+        return json.dumps({'error': str(e)})
+
+def _timefix_inner(p, fix_timing, next_gain, json_to_hrb):
     text = p['motionText']
     if p.get('motionExt') == '.json':
         text = json_to_hrb(json.loads(text))
@@ -45,8 +51,12 @@ def _timefix_json(js):
     return json.dumps(asdict(r))
 
 def _apply_json(js):
+    from core.io_twinpose import AlreadyTimedInput
     p = json.loads(js)
-    return apply_texture(p['motionPath'], p['metricsText'], p['gains'], p['robot'])
+    try:
+        return apply_texture(p['motionPath'], p['metricsText'], p['gains'], p['robot'])
+    except AlreadyTimedInput as e:
+        return json.dumps({'error': str(e)})
 
 def apply_texture(motion_path, metrics_csv_text, gains, robot):
     _write_adapted(metrics_csv_text)

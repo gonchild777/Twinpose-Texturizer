@@ -55,6 +55,7 @@ export function wireFileInputs(onVideo) {
     const kfs = parseMotion(f.name, text);
     const doc = f.name.endsWith('.json') ? JSON.parse(text) : null;
     set({ keyframes: kfs, texture: null, motionDoc: doc, accOverrides: {}, undo: [], redo: [],
+          motionRaw: text, kfOriginal: kfs.map(k => k.time), timefix: null,
           motionExt: f.name.endsWith('.json') ? '.json' : '.hrb',
           duration: Math.max(state.duration, kfs.at(-1)?.time || 0),
           files: { ...state.files, motion: f } });
@@ -71,4 +72,22 @@ export function mark(kind, name) {
   document.getElementById('n' + kind).textContent = name;
   document.getElementById('n' + kind).classList.add('loaded');
   document.getElementById('ok' + kind).classList.add('show');
+}
+
+// 套用關鍵幀時間編輯後的動作檔文字(Texturizer 與 Time Fix 共用)。
+// .json:motionDoc 已被 moveKeyframe 就地更新;.hrb:以原文為底,只把 PTP_TIME 的 TIME 換成新間隔。
+export function editedMotionText() {
+  if (state.motionDoc) return JSON.stringify(state.motionDoc);
+  const ks = state.keyframes || [];
+  let k = 0;
+  return state.motionRaw.split(/\r?\n/).map(line => {
+    if (!/^\s*PTP_TIME\b/.test(line) || !/TIME=\d+/.test(line)) return line;
+    k += 1;
+    if (!ks[k] || !ks[k - 1]) return line;
+    const ms = Math.round((ks[k].time - ks[k - 1].time) * 1000);
+    return line.replace(/TIME=\d+/, `TIME=${ms}`);
+  }).join('\n');
+}
+export function keyframesEdited() {
+  return !!state.kfOriginal && (state.keyframes || []).some((k, i) => Math.abs(k.time - state.kfOriginal[i]) > 1e-4);
 }
