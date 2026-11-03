@@ -39,12 +39,12 @@ def _timefix_json(js):
             text = json_to_hrb(json.loads(text))
         timer = bool(p.get('timer'))
         if not p.get('auto', True):                       # 手動模式:只修 66ms
-            return json.dumps(asdict(fix_timing(text, gain=0, timer=timer)))
+            return json.dumps(asdict(fix_timing(text, gain=0, timer=timer, trigger=bool(p.get('trigger', True)))))
         trim = p.get('trim')
         if trim is None:
             hist = [h for h in (p.get('history') or []) if h.get('measured_s') is not None]
             trim = next_trim(hist, fix_timing(text).schedule_s) if hist else 0.0
-        return json.dumps(asdict(fix_timing(text, timer=timer, trim_s=trim)))
+        return json.dumps(asdict(fix_timing(text, timer=timer, trim_s=trim, trigger=bool(p.get('trigger', True)))))
     except AlreadyTimedError as e:
         return json.dumps({'error': str(e)})
 

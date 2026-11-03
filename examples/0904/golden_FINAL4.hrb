@@ -3,8 +3,9 @@
 ;[Point&E]
 ;[Program&SV2]
 ; DANCE | textured by HRS Texturizer
-; robot: MEASURED_AUTO100 | generated: 2026-11-03 16:41
+; robot: MEASURED_AUTO100 | generated: 2026-11-03 17:04
 ; anchors: 26  pass: 58  decimated: 3
+; correction (trim): +0.000s applied +0.000s | trigger: no | timer: no
 
 ; <Pose 1> 進場 @ 0.00s
 E6AXIS P1={A1 -37.8,A2 -41.6,A3 -33.7,A4 0.0,A5 -21.7,A6 0.0}
