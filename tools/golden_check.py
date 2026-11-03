@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""黃金樣本守門:解壓「實際部署給瀏覽器」的 engine zip,以 worker 膠水等效路徑
+"""黃金樣本守門(2026-11-03 起:k_floor 0.88 統一下限 + 帳本閉合;原實測 77.906s 版本留在 golden_FINAL4_measured_77906.hrb,總長相同、11 行 TIME 重分配):解壓「實際部署給瀏覽器」的 engine zip,以 worker 膠水等效路徑
 跑 examples/0904 輸入,指令行必須與實測收斂的 FINAL4 逐行一致。
 任何引擎或膠水改動若使網站產碼偏離實機驗證結果,CI 即擋下。"""
 import sys, tempfile, zipfile, pathlib

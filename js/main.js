@@ -2,7 +2,7 @@ import { state, set, on, emit } from './store.js';
 import { wireFileInputs, mark, editedMotionText } from './files.js';
 import { initVideo, loadVideoFile } from './video.js';
 import { initTimeline } from './timeline.js';
-import { initEngine, engineReady, applyTexture } from './bridge.js';
+import { initEngine, engineReady, applyTexture, nextTrim } from './bridge.js';
 import { initPlan } from './plan.js';
 import { initTimefix, timefixSheet, rerunTimefix } from './timefix.js';
 
@@ -46,12 +46,14 @@ async function runApply() {
                                      metricsFile: state.files.metrics,
                                      gains: { ...state.gains, acc_overrides: state.accOverrides,
                                               ramp: state.ramp.on && state.ramp.end > state.ramp.start
-                                                    ? { start: state.ramp.start, end: state.ramp.end, mode: state.ramp.mode } : null } });
+                                                    ? { start: state.ramp.start, end: state.ramp.end, mode: state.ramp.mode } : null,
+                                              trim: state.texTrim, output: state.texOut } });
     const msg = document.getElementById('applyMsg');
     msg.classList.toggle('show', !!tex.error); msg.textContent = tex.error || '';
     if (tex.error) { set({ texture: null }); document.getElementById('codeBtn').disabled = true; applyBtn.textContent = 'Apply Texture'; busy = false; return; }
     set({ texture: tex });
     renderErrors(tex);
+    renderTexCalib(tex);
     document.getElementById('codeBtn').disabled = false;
   } catch (e) {
     document.getElementById('engineStatus').textContent = 'engine error: ' + e;
@@ -79,11 +81,13 @@ document.getElementById('backBtn').onclick = () => modal.classList.remove('open'
 function fillSheet() {
   if (state.tab === 'timefix' && state.timefix) return fillGeneric(timefixSheet());
   const tex = state.texture; if (!tex) return;
-  const name = (state.files.motion?.name || 'motion').replace(/\.(json|hrb)$/, '') + '_textured.hrb';
+  const v = state.texHistory.at(-1)?.v;
+  const name = (state.files.motion?.name || 'motion').replace(/\.(json|hrb)$/, '') + '_textured' + (v ? `_v${v}` : '') + '.hrb';
   document.getElementById('sheetTitle').textContent = 'Code Editor — ' + name;
   const st = tex.stats;
   document.getElementById('stats').innerHTML =
-    `<span><b>${tex.timeline.length}</b> points</span><span><b>${st.anchors}</b> anchors</span>` +
+    `<span>schedule <b>${tex.schedule_s?.toFixed(2) ?? '—'} s</b></span><span>this version <b>≈ ${tex.pred_s?.toFixed(1) ?? '—'} s</b></span>` +
+    `<span>correction <b>${corrLabel(tex.trim_s)}</b></span><span><b>${st.anchors}</b> anchors</span>` +
     `<span><b>${st.pass}</b> flow</span><span>warnings <b>${tex.warnings.length}</b></span>`;
   const wl = document.getElementById('warnline');
   const sat = (tex.saturated || []).length;
@@ -300,3 +304,68 @@ document.getElementById('rampOn').onclick = () => {
 document.getElementById('rampStartPh').onclick = () => { document.getElementById('rampStart').value = state.time.toFixed(1); readRamp(); };
 document.getElementById('rampEndPh').onclick = () => { document.getElementById('rampEnd').value = state.time.toFixed(1); readRamp(); };
 syncRampUI();
+
+
+// ==== Texturizer:輸出選項 + 實測回授(Calibrate)====
+const corrLabel = t => Math.abs(t || 0) < 5e-4 ? 'base' : `${t > 0 ? '−' : '+'}${Math.abs(t).toFixed(2)} s`;
+const texKey = () => 'tex_hist::' + (state.files.motion?.name || '');
+function loadTexHistory() {
+  try { set({ texHistory: JSON.parse(localStorage.getItem(texKey()) || '[]') }); } catch { set({ texHistory: [] }); }
+  const last = state.texHistory.at(-1);
+  set({ texTrim: last ? last.trim_s : 0 });
+}
+function saveTexHistory() { try { localStorage.setItem(texKey(), JSON.stringify(state.texHistory)); } catch {} }
+['texTrigger', 'texTimer'].forEach((id, k) => document.getElementById(id).onclick = function () {
+  const key = k ? 'timer' : 'trigger';
+  set({ texOut: { ...state.texOut, [key]: !state.texOut[key] } });
+  this.querySelector('.tg').classList.toggle('on', state.texOut[key]);
+  if (state.texture) runApply();
+});
+on('change', p => { if ('files' in p && state.files.motion) loadTexHistory(); });
+function renderTexCalib(tex) {
+  document.getElementById('texSum').style.display = '';
+  document.getElementById('texSched').textContent = tex.schedule_s.toFixed(2) + ' s';
+  document.getElementById('texPred').textContent = `≈ ${tex.pred_s.toFixed(1)} s`;
+  document.getElementById('texCorr').textContent = corrLabel(tex.trim_s);
+  document.getElementById('texRefine').disabled = false;
+  const h = state.texHistory;
+  if (!h.length || h.at(-1).measured_s != null) {          // 新的一版
+    if (!h.length || Math.abs(h.at(-1).trim_s - tex.trim_s) > 5e-4)
+      h.push({ v: (h.at(-1)?.v || 0) + 1, trim_s: tex.trim_s, measured_s: null });
+  }
+  saveTexHistory();
+  const sched = tex.schedule_s;
+  document.getElementById('texLog').innerHTML = h.map((x, i) => {
+    const m = x.measured_s, cur = i === h.length - 1;
+    const cls = m == null ? '' : Math.abs(m - sched) / sched <= 0.003 ? 'ok' : 'bad';
+    const pctv = m == null ? '' : `${m >= sched ? '+' : ''}${((m - sched) / sched * 100).toFixed(2)}%${cls === 'ok' ? ' ✓' : ''}`;
+    return `<tr class="${cur ? 'cur' : ''}"><td>v${x.v}</td><td class="num">${corrLabel(x.trim_s)}</td>` +
+      `<td class="num">${m == null ? (cur ? 'run this one' : '—') : m.toFixed(3) + ' s'}</td><td class="num ${cls}">${pctv}</td></tr>`;
+  }).join('');
+  document.getElementById('texClear').style.display = h.some(x => x.measured_s != null) ? '' : 'none';
+}
+async function texRefine() {
+  let ms = +document.getElementById('texMeasured').value;
+  const tex = state.texture, last = state.texHistory.at(-1);
+  if (!ms || !tex || !last) return;
+  if (ms < 1000) ms *= 1000;
+  const off = (ms / 1000 - tex.schedule_s) / tex.schedule_s;
+  const msg = document.getElementById('applyMsg');
+  if (Math.abs(off) > 0.10) {
+    msg.classList.add('show');
+    msg.textContent = `${(ms / 1000).toFixed(3)} s is ${(off * 100).toFixed(1)}% off the schedule (${tex.schedule_s.toFixed(2)} s), so it wasn't used. Check that $T[1] came from this file's run and is in ms.`;
+    return;
+  }
+  msg.classList.remove('show');
+  if (last.measured_s != null) state.texHistory.push({ v: last.v, trim_s: last.trim_s, measured_s: null, rerun: true });
+  state.texHistory.at(-1).measured_s = ms / 1000;
+  document.getElementById('texMeasured').value = '';
+  saveTexHistory();
+  if (Math.abs(off) <= 0.003) { renderTexCalib(tex); return; }      // 已在 ±0.3%
+  const r = await nextTrim(state.texHistory.filter(x => x.measured_s != null), tex.schedule_s);
+  set({ texTrim: r.trim });
+  runApply();
+}
+document.getElementById('texRefine').onclick = texRefine;
+document.getElementById('texMeasured').addEventListener('keydown', e => { if (e.key === 'Enter') texRefine(); });
+document.getElementById('texClear').onclick = () => { set({ texHistory: [], texTrim: 0 }); saveTexHistory(); runApply(); };

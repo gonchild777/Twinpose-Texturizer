@@ -4,7 +4,7 @@ const pending = new Map();
 const statusEl = () => document.getElementById('engineStatus');
 
 export function initEngine() {
-  worker = new Worker('worker/py-worker.js?v=11');
+  worker = new Worker('worker/py-worker.js?v=13');
   worker.onmessage = e => {
     const { type, id, payload } = e.data;
     if (type === 'ready') { ready = true; statusEl().textContent = 'engine: ready ✓ (texturizer wheel loaded)'; }
@@ -29,6 +29,12 @@ export function timeFix(payload) {
     const id = ++seq;
     pending.set(id, { resolve, reject });
     worker.postMessage({ type: 'timefix', id, payload });
+  });
+}
+export function nextTrim(history, schedule_s) {
+  return new Promise((resolve, reject) => {
+    const id = ++seq; pending.set(id, { resolve, reject });
+    worker.postMessage({ type: 'next_trim', id, payload: { history, schedule_s } });
   });
 }
 export function applyTexture({ motionText, motionExt, metricsFile, gains, robot = 'MEASURED_AUTO100' }) {

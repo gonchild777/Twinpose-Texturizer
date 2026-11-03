@@ -243,8 +243,25 @@ input[type=file]{display:none}
         </div>
         <div class="hint">Blends from no texture (every point FINE=1, Acc 100) to full texture across the interval. Acc eases continuously; the most flowing passages unlock CONT first. Timing stays locked.</div>
       </div>
+      <div class="hr" style="margin:4px 0 12px"></div>
+      <div class="toggle" id="texTrigger" style="margin-bottom:8px"><span class="tg on"></span>Wait for $DI[8] before start</div>
+      <div class="toggle" id="texTimer" style="margin-bottom:4px"><span class="tg on"></span>Add $T[1] timer</div>
+      <div class="hint">Same trigger and timer position as TwinPose / Time Fix, so all three files are recorded and measured the same way. The timer starts right after the trigger.</div>
       <button class="gbtn green" id="applyBtn" style="width:100%;padding:10px;margin-top:4px" disabled>Apply Texture</button>
       <div class="warnline" id="applyMsg" style="margin:8px 0 0"></div>
+      <div class="tfsum" id="texSum" style="display:none;margin-top:10px">
+        <div><span>Schedule (video)</span><b id="texSched">—</b></div>
+        <div><span>This version</span><b id="texPred">—</b></div>
+        <div><span>Correction</span><b id="texCorr">base</b></div>
+      </div>
+      <div class="tftitle" style="margin-top:12px">Calibrate with a test run</div>
+      <div class="ramprow">
+        <span class="rl">$T[1]</span><input type="number" id="texMeasured" placeholder="ms, e.g. 193422" style="width:110px"><span class="ru">ms</span>
+        <button class="gbtn tiny" id="texRefine" disabled>Refine</button>
+      </div>
+      <div class="hint">Run this version, read $T[1], enter it. The next version is corrected toward the schedule. Changing gains or ramp keeps the correction.</div>
+      <table class="tflog" id="texLog"></table>
+      <button class="gbtn tiny" id="texClear" style="margin-left:0;display:none">Clear runs</button>
       <div class="status" id="engineStatus">engine: loading…</div>
     </div>
     <div class="errbox" id="errBox">
@@ -277,7 +294,7 @@ input[type=file]{display:none}
       <div class="hr"></div>
       <div class="tftitle">Calibrate with a test run</div>
       <div class="ramprow">
-        <span class="rl">$T[1]</span><input type="number" id="tfMeasured" placeholder="e.g. 195276" style="width:110px"><span class="ru">ms</span>
+        <span class="rl">$T[1]</span><input type="number" id="tfMeasured" placeholder="ms, e.g. 195276" style="width:110px"><span class="ru">ms</span>
         <button class="gbtn tiny" id="tfRefine" disabled>Refine</button>
       </div>
       <div class="hint">Run the file from Code Editor, read $T[1], enter it here. The next version corrects toward the schedule; one or two runs usually land within ±0.3%.</div>

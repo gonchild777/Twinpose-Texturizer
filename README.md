@@ -43,6 +43,15 @@ python3 -m http.server 8080        # repo 根目錄
 錨點過半後採用質感分級。時序由 budget 帳本結清,總長不變。
 CLI:`--ramp 10:25` / `--ramp-out 50:70`。
 
+## 標準工作流程(無質感 / 有質感 / 漸變 三個檔案同長 = 影片)
+1. TwinPose 匯出 .hrb(或 .json)。**三個檔案都從這一份原始檔出發,不串接。**
+2. Time Fix:Fix Timing → 看「Moves the arm can't make」(或下載 .csv)→ 回 TwinPose 修 → 重新匯出,
+   直到清單清空。Time Fix 與 Texturizer 用同一套校正下限(k_floor 0.88),兩邊紅框一致。
+3. 無質感:Time Fix 輸出。有質感:Texturizer 輸出。漸變:Texturizer + Texture ramp。
+   三者進場後都有 `WAIT FOR $DI[8] == TRUE`(沿用原始檔的那一行)與可選的 $T[1] 計時器,錄影與計時起點相同。
+4. 任一輸出先跑一次、把 $T[1] 填進該分頁的 Calibrate,下一版自動修到 ±0.3%。
+   總長由帳本閉合保證 = 排程;欠時先由錨點吸收,吸收不完的從所有寬裕段按比例扣回。
+
 ## Time Fix(TwinPose 直出 .hrb → 對準影片長度)
 TwinPose 直接下載的 .hrb 把每段 TIME 寫成關鍵幀間隔,但 HRSS 每段 FINE=1 會多 66ms,
 快速大動作還會被拖長 —— dance0719(3:14)直出實跑 3:29。
@@ -55,7 +64,13 @@ Time Fix 分頁:Motion 放 TwinPose 的 .hrb(或 .json)→ **Fix Timing** → Co
 TwinPose 裡目前間隔、最少要給多少(已含 66ms)、要加幾 ms。改完重新匯出再檢查;最後仍需過一次 Time Fix 補 66ms。
 **最準的用法是閉環**:跑一次 → 把 $T[1] 填進 Calibrate → 自動出下一版,通常 1–2 次到 ±0.3%。
 預設參數由 dance0719 五次實測校正(直出 208.719 → v4 193.422,目標 194.0)。
-CLI:`python calibration/twinpose_timefix.py in.hrb -o out.hrb --timer [--measured GAIN:SEC]`
+實測回授調的是「整首再縮短/加長幾秒」(correction,可正可負):偏長會再扣、偏短會加回;
+紅框已在 TwinPose 修好(沒有欠時)時一樣有效。實測輸入 ms 或秒皆可;偏離排程 >10% 視為打錯不採用。
+CLI:`python calibration/twinpose_timefix.py in.hrb -o out.hrb --timer [--measured TRIM:SEC ...]`
+
+## 黃金樣本變更(2026-11-03)
+統一下限 + 帳本閉合後,0904 有 11 行 TIME 重分配(總長不變,飽和段 8→3)。
+實測 77.906s 的舊版留在 `examples/0904/golden_FINAL4_measured_77906.hrb`;新版尚待實機複測。
 
 ## 操作備忘
 - Texturizer 分頁:拖曳菱形改時間(僅 .json 動作檔可編輯;.hrb 為唯讀顯示)

@@ -22,7 +22,10 @@ export const state = {
   tfHistory: [],        // [{v, gain, measured_s}] 依版本順序
   tfTimer: true,
   tfSched: null,
-  tfAuto: true,         // Time Fix:自動從寬裕段補回欠時        // 目前檔案的排程長度(s)
+  tfAuto: true,
+  texOut: { trigger: true, timer: true },   // Texturizer 輸出選項
+  texTrim: 0,            // Texturizer 實測回授(秒,+縮短)
+  texHistory: [],        // [{v, trim_s, measured_s}]         // Time Fix:自動從寬裕段補回欠時        // 目前檔案的排程長度(s)
 };
 const subs = {};
 export function on(ev, fn){ (subs[ev] ||= []).push(fn); }

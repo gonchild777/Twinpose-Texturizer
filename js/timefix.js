@@ -6,7 +6,7 @@ import { seek } from './video.js';
 import { editedMotionText, keyframesEdited } from './files.js';
 
 const $ = id => document.getElementById(id);
-const histKey = () => 'tf_hist::' + (state.files.motion?.name || '');
+const histKey = () => 'tf_hist2::' + (state.files.motion?.name || '');   // v2 紀錄格式:trim_s
 
 export function initTimefix() {
   setInterval(() => {
@@ -17,7 +17,7 @@ export function initTimefix() {
   $('tfTimer').onclick = () => {
     set({ tfTimer: !state.tfTimer });
     $('tfTimer').querySelector('.tg').classList.toggle('on', state.tfTimer);
-    if (state.timefix) run(state.timefix.gain, false);   // 同一版,只換計時器
+    if (state.timefix) run(state.timefix.trim_s, false);   // 同一版,只換計時器
   };
   $('tfBtn').onclick = () => {
     if (+$('tfMeasured').value) return refine();          // 填了實測卻按 Fix → 照樣採用
@@ -64,9 +64,9 @@ function bestDone() {                                   // 已達 ±0.3% 的版�
 }
 function currentGain() {
   const h = state.tfHistory.at(-1);
-  if (h && h.measured_s == null) return h.gain;         // 還沒跑的版本 → 重出同一版
+  if (h && h.measured_s == null) return h.trim_s;       // 還沒跑的版本 → 重出同一版
   const done = bestDone();
-  if (done) return done.gain;                           // 已對準 → 重出最好的那一版
+  if (done) return done.trim_s;                         // 已對準 → 重出最好的那一版
   return null;                                          // 否則依實測算下一版
 }
 function label() {
@@ -80,7 +80,7 @@ function label() {
     : last?.measured_s == null ? `Regenerate v${last.v}` : 'Make next version';
 }
 
-async function run(gain, recordVersion) {
+async function run(trim, recordVersion) {
   const btn = $('tfBtn'); btn.textContent = 'Fixing…';
   try {
     const f = state.files.motion;
@@ -88,7 +88,8 @@ async function run(gain, recordVersion) {
       motionText: editedMotionText(),
       motionExt: f.name.endsWith('.json') ? '.json' : '.hrb',
       timer: state.tfTimer,
-      gain: state.tfAuto ? gain : 0,         // null → 預設或依實測修正;關閉自動補償 → 0
+      auto: state.tfAuto,                    // 關閉 → 只修 66ms
+      trim,                                  // null → 依實測算下一版;第一版 0
       history: state.tfHistory.filter(h => h.measured_s != null),
     });
     $('tfMsg').classList.toggle('show', !!r.error);
@@ -97,10 +98,10 @@ async function run(gain, recordVersion) {
     set({ tfSched: r.schedule_s });
     if (recordVersion && state.tfAuto) {
       const h = state.tfHistory, last = h.at(-1);
-      const existing = h.find(x => Math.abs(x.gain - r.gain) < 1e-4);
-      if (existing) r.version = existing.v;                 // 同 gain = 同一版,不重複記
-      else if (!last || last.measured_s != null) { h.push({ v: Math.max(0, ...h.map(x => x.v)) + 1, gain: r.gain, measured_s: null }); r.version = h.at(-1).v; }
-      else { last.gain = r.gain; r.version = last.v; }
+      const existing = h.find(x => Math.abs(x.trim_s - r.trim_s) < 5e-4);
+      if (existing) r.version = existing.v;                 // 同 trim = 同一版,不重複記
+      else if (!last || last.measured_s != null) { h.push({ v: Math.max(0, ...h.map(x => x.v)) + 1, trim_s: r.trim_s, measured_s: null }); r.version = h.at(-1).v; }
+      else { last.trim_s = r.trim_s; r.version = last.v; }
       saveHistory();
     }
     set({ timefix: r });
@@ -114,11 +115,20 @@ async function run(gain, recordVersion) {
 }
 
 function refine() {
-  const ms = +$('tfMeasured').value;
+  let ms = +$('tfMeasured').value;
   let last = state.tfHistory.at(-1);
   if (!ms || !last || !state.timefix) return;
+  if (ms < 1000) ms *= 1000;                             // 輸入的是秒(193.422)→ 換成 ms
+  const off = (ms / 1000 - state.timefix.schedule_s) / state.timefix.schedule_s;
+  if (Math.abs(off) > 0.10) {                            // 打錯或量錯檔案:不採用
+    $('tfMsg').classList.add('show');
+    $('tfMsg').textContent = `${(ms / 1000).toFixed(3)} s is ${(off * 100).toFixed(1)}% off this file's schedule ` +
+      `(${state.timefix.schedule_s.toFixed(2)} s), so it wasn't used. Check that $T[1] came from this file's run and is in ms.`;
+    return;
+  }
+  $('tfMsg').classList.remove('show');
   if (last.measured_s != null) {                        // 同一版再跑一次 → 另記一筆,不覆蓋
-    last = { v: last.v, gain: last.gain, measured_s: null, rerun: true };
+    last = { v: last.v, trim_s: last.trim_s, measured_s: null, rerun: true };
     state.tfHistory.push(last);
   }
   last.measured_s = ms / 1000;
@@ -152,6 +162,9 @@ export function rerunTimefix() {
   rerunTimer = setTimeout(() => run(state.tfAuto ? currentGain() : 0, false), 350);
 }
 
+// 顯示用:trim 正 = 縮短 → 以「−0.58 s」表示;第一版顯示 base
+const corr = t => Math.abs(t) < 5e-4 ? 'base' : `${t > 0 ? '−' : '+'}${Math.abs(t).toFixed(2)} s`;
+
 const pct = (x, base) => `${x >= base ? '+' : ''}${((x - base) / base * 100).toFixed(2)}%`;
 
 function render() {
@@ -171,7 +184,7 @@ function render() {
     const cur = i === state.tfHistory.map(x => x.v).lastIndexOf(curV);   // 目前 Code Editor 裡的那一版
     const m = h.measured_s;
     const cls = m == null ? '' : Math.abs(m - r.schedule_s) / r.schedule_s <= 0.003 ? 'ok' : 'bad';
-    return `<tr class="${cur ? 'cur' : ''}"><td>v${h.v}${h.rerun ? ' re-run' : ''}</td><td class="num">gain ${h.gain.toFixed(3)}</td>` +
+    return `<tr class="${cur ? 'cur' : ''}"><td>v${h.v}${h.rerun ? ' re-run' : ''}</td><td class="num">${corr(h.trim_s)}</td>` +
       `<td class="num">${m == null ? (cur ? 'run this one' : '—') : m.toFixed(3) + ' s'}</td>` +
       `<td class="num ${cls}">${m == null ? '' : pct(m, r.schedule_s) + (cls === 'ok' ? ' ✓' : '')}</td></tr>`;
   });
@@ -199,7 +212,7 @@ export function timefixSheet() {
     stats: `<span>schedule <b>${r.schedule_s.toFixed(2)} s</b></span>` +
            `<span>as exported <b>≈ ${r.raw_pred_s.toFixed(1)} s</b></span>` +
            `<span>this version <b>≈ ${r.fixed_pred_s.toFixed(1)} s</b></span>` +
-           `<span><b>${r.segments}</b> moves</span><span>gain <b>${r.gain.toFixed(3)}</b></span>`,
+           `<span><b>${r.segments}</b> moves</span><span>correction <b>${corr(r.trim_s)}</b></span>`,
     warn: 'Run times are model estimates. Confirm with $T[1] and enter it under Calibrate.',
     hrb: r.hrb,
   };
