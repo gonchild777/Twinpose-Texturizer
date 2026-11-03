@@ -332,6 +332,8 @@ function renderTexCalib(tex) {
   if (!h.length || h.at(-1).measured_s != null) {          // 新的一版
     if (!h.length || Math.abs(h.at(-1).trim_s - tex.trim_s) > 5e-4)
       h.push({ v: (h.at(-1)?.v || 0) + 1, trim_s: tex.trim_s, measured_s: null });
+  } else if (Math.abs(h.at(-1).trim_s - tex.trim_s) > 5e-4) {
+    h.at(-1).trim_s = tex.trim_s;                          // 還沒跑的版本被手動改了修正量
   }
   saveTexHistory();
   const sched = tex.schedule_s;
@@ -367,5 +369,12 @@ async function texRefine() {
   runApply();
 }
 document.getElementById('texRefine').onclick = texRefine;
+document.getElementById('texManualBtn').onclick = () => {
+  const v = parseFloat(document.getElementById('texManual').value); if (Number.isNaN(v)) return;
+  document.getElementById('texManual').value = '';
+  set({ texTrim: -v });                              // 介面:負 = 加長;引擎 trim:正 = 縮短
+  runApply();
+};
+document.getElementById('texManual').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('texManualBtn').click(); });
 document.getElementById('texMeasured').addEventListener('keydown', e => { if (e.key === 'Enter') texRefine(); });
 document.getElementById('texClear').onclick = () => { set({ texHistory: [], texTrim: 0 }); saveTexHistory(); runApply(); };

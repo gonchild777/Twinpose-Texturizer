@@ -64,7 +64,9 @@ Time Fix 分頁:Motion 放 TwinPose 的 .hrb(或 .json)→ **Fix Timing** → Co
 TwinPose 裡目前間隔、最少要給多少(已含 66ms)、要加幾 ms。改完重新匯出再檢查;最後仍需過一次 Time Fix 補 66ms。
 **最準的用法是閉環**:跑一次 → 把 $T[1] 填進 Calibrate → 自動出下一版,通常 1–2 次到 ±0.3%。
 預設參數由 dance0719 五次實測校正(直出 208.719 → v4 193.422,目標 194.0)。
-實測回授調的是「整首再縮短/加長幾秒」(correction,可正可負):偏長會再扣、偏短會加回;
+實測回授調的是「整首再縮短/加長幾秒」(correction,+ = 跑得更長):偏長會再扣、偏短會加回;
+回應曲線不是直線(dance0719:加 4.26s 回收 64%、加 6.66s 回收 82%),所以保留所有實測點做內插,
+通常兩到三輪到 ±0.3%。Correction 欄可直接手動輸入(已知該加多少、或紀錄被清掉時)。
 紅框已在 TwinPose 修好(沒有欠時)時一樣有效。實測輸入 ms 或秒皆可;偏離排程 >10% 視為打錯不採用。
 CLI:`python calibration/twinpose_timefix.py in.hrb -o out.hrb --timer [--measured TRIM:SEC ...]`
 

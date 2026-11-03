@@ -30,6 +30,12 @@ export function initTimefix() {
     if (state.timefix) run(state.tfAuto ? currentGain() : 0, false); else label();
   };
   $('tfListDl').onclick = downloadList;
+  $('tfManualBtn').onclick = () => {
+    const v = parseFloat($('tfManual').value); if (Number.isNaN(v)) return;
+    $('tfManual').value = '';
+    run(-v, true);                                   // 介面:負 = 加長;引擎 trim:正 = 縮短
+  };
+  $('tfManual').addEventListener('keydown', e => { if (e.key === 'Enter') $('tfManualBtn').click(); });
   $('tfReset').onclick = () => {
     if (!state.kfOriginal) return;
     import('./timeline.js').then(m => { state.kfOriginal.forEach((t, i) => m.moveKeyframe(i, t)); rerunTimefix(); });
@@ -163,7 +169,7 @@ export function rerunTimefix() {
 }
 
 // 顯示用:trim 正 = 縮短 → 以「−0.58 s」表示;第一版顯示 base
-const corr = t => Math.abs(t) < 5e-4 ? 'base' : `${t > 0 ? '−' : '+'}${Math.abs(t).toFixed(2)} s`;
+const corr = t => Math.abs(t) < 5e-4 ? 'base' : `${t > 0 ? '−' : '+'}${Math.abs(t).toFixed(2)} s`;   // 引擎 trim>0 = 縮短 → 顯示「−」
 
 const pct = (x, base) => `${x >= base ? '+' : ''}${((x - base) / base * 100).toFixed(2)}%`;
 

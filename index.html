@@ -260,6 +260,11 @@ input[type=file]{display:none}
         <button class="gbtn tiny" id="texRefine" disabled>Refine</button>
       </div>
       <div class="hint">Run this version, read $T[1], enter it. The next version is corrected toward the schedule. Changing gains or ramp keeps the correction.</div>
+      <div class="ramprow">
+        <span class="rl">Correction</span><input type="number" id="texManual" step="0.1" placeholder="e.g. -5.4" style="width:90px"><span class="ru">s</span>
+        <button class="gbtn tiny" id="texManualBtn">Apply</button>
+      </div>
+      <div class="hint">Set the correction directly, same sign as the log (+ = longer run). It goes to FINE moves first; CONT moves only when FINE has no slack.</div>
       <table class="tflog" id="texLog"></table>
       <button class="gbtn tiny" id="texClear" style="margin-left:0;display:none">Clear runs</button>
       <div class="status" id="engineStatus">engine: loading…</div>
@@ -297,7 +302,12 @@ input[type=file]{display:none}
         <span class="rl">$T[1]</span><input type="number" id="tfMeasured" placeholder="ms, e.g. 195276" style="width:110px"><span class="ru">ms</span>
         <button class="gbtn tiny" id="tfRefine" disabled>Refine</button>
       </div>
-      <div class="hint">Run the file from Code Editor, read $T[1], enter it here. The next version corrects toward the schedule; one or two runs usually land within ±0.3%.</div>
+      <div class="hint">Run the file from Code Editor, read $T[1], enter it here. Every run is kept and the next version is interpolated on the measured response (the gain grows with the correction, so two or three runs usually land within ±0.3%).</div>
+      <div class="ramprow">
+        <span class="rl">Correction</span><input type="number" id="tfManual" step="0.1" placeholder="e.g. -5.6" style="width:90px"><span class="ru">s</span>
+        <button class="gbtn tiny" id="tfManualBtn">Apply</button>
+      </div>
+      <div class="hint">Set the correction directly, same sign as the log: +5.6 makes the run 5.6 s longer, −5.6 makes it shorter. Use it when you already know how much to add, or after the log was cleared.</div>
       <table class="tflog" id="tfLog"></table>
       <button class="gbtn tiny" id="tfClear" style="margin-left:0;display:none">Clear runs</button>
       <div class="tftitle" id="tfSatTitle" style="display:none">Moves the arm can't make</div>
