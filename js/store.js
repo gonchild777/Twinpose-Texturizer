@@ -16,6 +16,9 @@ export const state = {
   ramp: { on: false, mode: 'in', start: 0, end: 0 },   // 質感漸變區間
   undo: [], redo: [],
   tab: 'texture',
+  timefix: null,        // Time Fix 結果(引擎 fix_timing)
+  tfHistory: [],        // [{v, gain, measured_s}] 依版本順序
+  tfTimer: true,
 };
 const subs = {};
 export function on(ev, fn){ (subs[ev] ||= []).push(fn); }

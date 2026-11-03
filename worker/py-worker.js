@@ -29,6 +29,21 @@ def _plan_json(js):
     p = json.loads(js)
     return plan_keyframes(p['metricsText'], p['params'])
 
+def _timefix_json(js):
+    from core.timefix import fix_timing, next_gain, json_to_hrb
+    p = json.loads(js)
+    text = p['motionText']
+    if p.get('motionExt') == '.json':
+        text = json_to_hrb(json.loads(text))
+    base = fix_timing(text, gain=1.0)
+    hist = [h for h in (p.get('history') or []) if h.get('measured_s')]
+    g = p.get('gain')
+    if g is None and hist:
+        g = next_gain(hist, base.schedule_s, base.model_debt_s)
+    r = fix_timing(text, gain=g, timer=bool(p.get('timer')))
+    from dataclasses import asdict
+    return json.dumps(asdict(r))
+
 def _apply_json(js):
     p = json.loads(js)
     return apply_texture(p['motionPath'], p['metricsText'], p['gains'], p['robot'])
@@ -68,6 +83,11 @@ onmessage = async e => {
     if (type === 'plan') {
       pyodide.globals.set('__payload', JSON.stringify(payload));
       const out = pyodide.runPython('_plan_json(__payload)');
+      postMessage({ type: 'result', id, payload: JSON.parse(out) });
+    }
+    if (type === 'timefix') {
+      pyodide.globals.set('__payload', JSON.stringify(payload));
+      const out = pyodide.runPython('_timefix_json(__payload)');
       postMessage({ type: 'result', id, payload: JSON.parse(out) });
     }
     if (type === 'apply') {

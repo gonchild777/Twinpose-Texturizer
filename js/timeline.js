@@ -123,7 +123,7 @@ export function draw() {
     }
   }
   // 質感漸變帶:plain(灰)→ texture(綠),反向則相反
-  if (state.ramp?.on && state.ramp.end > state.ramp.start && state.tab !== 'keyframes') {
+  if (state.ramp?.on && state.ramp.end > state.ramp.start && state.tab === 'texture') {
     const [ky0, kh] = ofs['Keyframes'], [ay, ah] = ofs['Acc'];
     const x0 = tToPx(state.ramp.start), x1 = tToPx(state.ramp.end);
     const g = ctx.createLinearGradient(x0, 0, x1, 0);
@@ -159,6 +159,24 @@ export function draw() {
       }
     }
   }
+  // Time Fix 疊圖
+  if (state.tab === 'timefix' && state.timefix) {
+    const [ky0, kh] = ofs['Keyframes'], [ay, ah] = ofs['Acc'];
+    const ks = state.keyframes || [];
+    const segStart = t => { let p = 0; for (const k of ks) { if (k.time >= t - 1e-3) break; p = k.time; } return p; };
+    for (const r of state.timefix.repaid_segs) {                 // 被扣時間的段:綠條,高度 = 扣掉比例
+      const x0 = tToPx(segStart(r.t)), x1 = tToPx(r.t);
+      const hh = Math.max((r.from_ms - r.to_ms) / r.from_ms, 0.08) * (ah - 10);
+      ctx.fillStyle = '#4CAF50'; ctx.fillRect(x0 + 1.5, ay + ah - 4 - hh, Math.max(x1 - x0 - 3, 2), hh);
+    }
+    for (const r of state.timefix.saturated) {                   // 跟不上:紅框 + 紅條
+      const x = tToPx(r.t), x0 = tToPx(segStart(r.t));
+      ctx.strokeStyle = '#E5484D'; ctx.lineWidth = 1.5; ctx.strokeRect(x - 8, ky0 + 2, 16, kh - 4);
+      ctx.fillStyle = '#E5484D'; ctx.fillRect(x0 + 1.5, ay + 4, Math.max(x - x0 - 3, 2), 4);
+    }
+    ctx.fillStyle = '#9E9E9E'; ctx.font = '10px Helvetica';
+    ctx.fillText('green = time repaid · red = arm can\'t keep up', 6, ay + 11);
+  }
   // 播放頭
   const px = tToPx(state.time);
   ctx.strokeStyle = '#4CAF50'; ctx.lineWidth = 2; line(px, 0, px, H);
@@ -179,7 +197,7 @@ function plot(lane, ys, color) {
   ctx.stroke();
 }
 function indexTexture() {
-  if (!state.texture) return null;
+  if (!state.texture || state.tab === 'timefix') return null;
   const m = new Map();
   for (const p of state.texture.timeline) if (p.role !== 'wait') m.set(round3(p.t), p);
   return m;
@@ -188,7 +206,7 @@ const round3 = t => Math.round(t * 1000) / 1000;
 
 // ---- 命中測試與拖曳(M4)----
 function hitKeyframe(x, y) {
-  if (!state.keyframes || state.tab === 'keyframes') return -1;
+  if (!state.keyframes || state.tab !== 'texture') return -1;
   const [ky0, kh] = ofs['Keyframes'];
   if (y < ky0 || y > ky0 + kh) return -1;
   let best = -1, bd = 7;

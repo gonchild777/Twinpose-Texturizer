@@ -43,6 +43,15 @@ python3 -m http.server 8080        # repo 根目錄
 錨點過半後採用質感分級。時序由 budget 帳本結清,總長不變。
 CLI:`--ramp 10:25` / `--ramp-out 50:70`。
 
+## Time Fix(TwinPose 直出 .hrb → 對準影片長度)
+TwinPose 直接下載的 .hrb 把每段 TIME 寫成關鍵幀間隔,但 HRSS 每段 FINE=1 會多 66ms,
+快速大動作還會被拖長 —— dance0719(3:14)直出實跑 3:29。
+Time Fix 分頁:Motion 放 TwinPose 的 .hrb(或 .json)→ **Fix Timing** → Code Editor 下載。
+只改 TIME 數字(角度、FINE、Acc、WAIT FOR $DI 等其他行原樣保留),可選插入 $T[1] 計時器。
+**最準的用法是閉環**:跑一次 → 把 $T[1] 填進 Calibrate → 自動出下一版,通常 1–2 次到 ±0.3%。
+預設參數由 dance0719 五次實測校正(直出 208.719 → v4 193.422,目標 194.0)。
+CLI:`python calibration/twinpose_timefix.py in.hrb -o out.hrb --timer [--measured GAIN:SEC]`
+
 ## 操作備忘
 - Texturizer 分頁:拖曳菱形改時間(僅 .json 動作檔可編輯;.hrb 為唯讀顯示)
 - 點 Acc 力度條 → 輸入數值 Enter(覆寫鍵 = 原始關鍵幀索引,引擎端補償時序)

@@ -4,11 +4,13 @@ import { initVideo, loadVideoFile } from './video.js';
 import { initTimeline } from './timeline.js';
 import { initEngine, engineReady, applyTexture } from './bridge.js';
 import { initPlan } from './plan.js';
+import { initTimefix, timefixSheet } from './timefix.js';
 
 initVideo();
 initTimeline();
 initEngine();
 initPlan();
+initTimefix();
 wireFileInputs(f => { loadVideoFile(f); mark('Video', f.name); });
 
 // ---- 增益滑桿 ----
@@ -72,6 +74,7 @@ const modal = document.getElementById('modal');
 document.getElementById('codeBtn').onclick = () => { fillSheet(); modal.classList.add('open'); };
 document.getElementById('backBtn').onclick = () => modal.classList.remove('open');
 function fillSheet() {
+  if (state.tab === 'timefix' && state.timefix) return fillGeneric(timefixSheet());
   const tex = state.texture; if (!tex) return;
   const name = (state.files.motion?.name || 'motion').replace(/\.(json|hrb)$/, '') + '_textured.hrb';
   document.getElementById('sheetTitle').textContent = 'Code Editor — ' + name;
@@ -87,6 +90,18 @@ function fillSheet() {
   document.getElementById('dlBtn').onclick = () => {
     const blob = new Blob([tex.hrb], { type: 'text/plain' });
     const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
+    a.click(); URL.revokeObjectURL(a.href);
+  };
+}
+function fillGeneric(sh) {
+  document.getElementById('sheetTitle').textContent = 'Code Editor — ' + sh.name;
+  document.getElementById('stats').innerHTML = sh.stats;
+  const wl = document.getElementById('warnline');
+  wl.classList.toggle('show', !!sh.warn); wl.textContent = sh.warn || '';
+  document.getElementById('codeView').innerHTML = highlight(sh.hrb);
+  document.getElementById('dlBtn').onclick = () => {
+    const blob = new Blob([sh.hrb], { type: 'text/plain' });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: sh.name });
     a.click(); URL.revokeObjectURL(a.href);
   };
 }
@@ -113,6 +128,8 @@ document.querySelectorAll('.step').forEach(b => b.onclick = () => {
   const tab = b.dataset.tab;
   document.getElementById('planPanel').classList.toggle('on', tab === 'keyframes');
   document.getElementById('texturePanel').classList.toggle('on', tab === 'texture');
+  document.getElementById('timefixPanel').classList.toggle('on', tab === 'timefix');
+  document.getElementById('codeBtn').disabled = !(tab === 'timefix' ? state.timefix : state.texture);
   set({ tab });
 });
 

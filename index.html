@@ -86,6 +86,16 @@ details.robots .list{padding:8px 0 2px 20px;line-height:2;color:#B9B9B9}
 .ramprow select{background:#2E2E2E;color:#fff;border:1px solid #555;border-radius:4px;padding:5px 6px;font-size:13px;width:100%}
 .gbtn.tiny{font-size:11.5px;padding:4px 8px;margin-left:auto}
 .ramp.off .ramprow{opacity:.4;pointer-events:none}
+.tfsum{background:var(--panel2);border-radius:6px;padding:8px 12px;font-size:13px}
+.tfsum div{display:flex;justify-content:space-between;padding:4px 0;color:#C9C9C9}
+.tfsum b{color:#fff;font-weight:600}
+.tfsum b.ok{color:var(--green)}.tfsum b.bad{color:var(--err)}
+.tftitle{font-size:13px;color:#DADADA;font-weight:600;margin-bottom:6px}
+.tflog{width:100%;border-collapse:collapse;font-size:12.5px}
+.tflog td{padding:5px 4px;border-bottom:1px solid #555;color:#DADADA}
+.tflog td.num{text-align:right}
+.tflog tr.cur td{color:#fff;background:#4E4E4E}
+.tflog .ok{color:var(--green)}.tflog .bad{color:var(--err)}
 .hint{font-size:11.5px;color:#9A9A9A;line-height:1.45;margin:-5px 0 10px}
 .sval{background:#2E2E2E;text-align:right;padding:3px 8px;font-size:13.5px;border-radius:4px}
 .errbox{background:var(--panel2);border-radius:6px;padding:11px 12px;display:none}
@@ -135,6 +145,7 @@ input[type=file]{display:none}
   <nav class="steps">
     <button class="step" data-tab="keyframes">Keyframe Planner</button>
     <button class="step on" data-tab="texture">Texturizer</button>
+    <button class="step" data-tab="timefix">Time Fix</button>
   </nav>
   <a class="ext" href="https://twinpose.site/" target="_blank" rel="noopener" title="Capture poses in TwinPose, then bring the export back here">↗ TwinPose</a>
   <div class="spacer"></div>
@@ -245,6 +256,32 @@ input[type=file]{display:none}
       <span><i style="background:var(--cont)"></i>CONT</span>
     </div>
     </div><!-- /texturePanel -->
+
+    <!-- Time Fix 分頁面板:TwinPose 直出 .hrb → 對準影片長度 -->
+    <div class="panel" id="timefixPanel">
+      <div class="hint" style="margin:0">Load the .hrb you downloaded from TwinPose into Motion. Video and Metrics are optional here.</div>
+      <div class="tfsum" id="tfSum">
+        <div><span>Schedule (video)</span><b id="tfSched">—</b></div>
+        <div><span>As exported</span><b id="tfRaw">—</b></div>
+        <div><span>This version</span><b id="tfFixed">—</b></div>
+        <div><span>Moves the arm can't make</span><b id="tfSat">—</b></div>
+      </div>
+      <div class="toggle" id="tfTimer"><span class="tg on"></span>Add $T[1] timer</div>
+      <div class="hint">Timer starts after WAIT FOR $DI (your recording trigger) if the file has one, otherwise after the entry move.</div>
+      <button class="gbtn green" id="tfBtn" style="width:100%;padding:10px" disabled>Fix Timing</button>
+      <div class="hint">Only TIME values change. Each FINE=1 line gives back the 66 ms the controller adds, and time lost on moves the arm can't make is repaid from the next relaxed moves. Angles, FINE, Acc and every other line stay as exported.</div>
+      <div class="hr"></div>
+      <div class="tftitle">Calibrate with a test run</div>
+      <div class="ramprow">
+        <span class="rl">$T[1]</span><input type="number" id="tfMeasured" placeholder="e.g. 195276" style="width:110px"><span class="ru">ms</span>
+        <button class="gbtn tiny" id="tfRefine" disabled>Refine</button>
+      </div>
+      <div class="hint">Run the file from Code Editor, read $T[1], enter it here. The next version corrects toward the schedule; one or two runs usually land within ±0.3%.</div>
+      <table class="tflog" id="tfLog"></table>
+      <button class="gbtn tiny" id="tfClear" style="margin-left:0;display:none">Clear runs</button>
+      <div class="tftitle" id="tfSatTitle" style="display:none">Moves the arm can't make</div>
+      <div id="tfSatList"></div>
+    </div>
   </aside>
 </div>
 
